@@ -52,72 +52,19 @@ const HOUR_HEIGHT = 64;
 
       <!-- Weekly project summary -->
       @if (weekTotalHours() > 0) {
-        <div class="border-b border-gray-100 bg-gray-50/20">
-          <button (click)="summaryExpanded.set(!summaryExpanded())"
-            class="flex items-center gap-3 px-4 py-1 w-full hover:bg-gray-50/60 transition-colors overflow-x-auto">
-            <svg class="w-3 h-3 text-gray-400 flex-shrink-0 transition-transform"
-                 [class.rotate-90]="summaryExpanded()"
-                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-            </svg>
-            <span class="text-[10px] font-bold text-gray-400 tabular-nums whitespace-nowrap">
-              {{ formatHM(weekTotalHours()) }}
-            </span>
-            <div class="flex items-center gap-2 min-w-0">
-              @for (ps of weekProjectSummary(); track ps.pid) {
-                <div class="flex items-center gap-1 whitespace-nowrap">
-                  <div class="w-1.5 h-1.5 rounded-full flex-shrink-0" [style.background-color]="ps.color"></div>
-                  <span class="text-[10px] text-gray-500">{{ ps.name }}</span>
-                  <span class="text-[10px] font-semibold tabular-nums" [style.color]="ps.color">{{ formatHM(ps.hours) }}</span>
-                </div>
-              }
-            </div>
-          </button>
-          @if (summaryExpanded()) {
-            <div class="px-4 pb-2 overflow-x-auto">
-              <table class="w-full text-[11px]">
-                <thead>
-                  <tr class="text-gray-400">
-                    <th class="text-left py-1 pr-3 font-medium">Projekt</th>
-                    @for (day of days(); track day.date.toISOString()) {
-                      <th class="text-center py-1 px-2 font-medium min-w-[52px]"
-                          [class.text-indigo-500]="day.isToday">{{ day.dayName }}</th>
-                    }
-                    <th class="text-right py-1 pl-3 font-semibold text-gray-500">Gesamt</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (row of summaryTable(); track row.pid) {
-                    <tr class="border-t border-gray-100/60">
-                      <td class="py-1 pr-3">
-                        <div class="flex items-center gap-1.5">
-                          <div class="w-2 h-2 rounded-full flex-shrink-0" [style.background-color]="row.color"></div>
-                          <span class="text-gray-600 truncate max-w-[120px]">{{ row.name }}</span>
-                        </div>
-                      </td>
-                      @for (h of row.perDay; track $index) {
-                        <td class="text-center py-1 px-2 tabular-nums"
-                            [class.text-gray-300]="h === 0"
-                            [class.text-gray-700]="h > 0">{{ h > 0 ? formatHM(h) : '-' }}</td>
-                      }
-                      <td class="text-right py-1 pl-3 font-semibold tabular-nums text-gray-700">{{ formatHM(row.total) }}</td>
-                    </tr>
-                  }
-                </tbody>
-                <tfoot>
-                  <tr class="border-t border-gray-200">
-                    <td class="py-1 pr-3 font-semibold text-gray-500">Gesamt</td>
-                    @for (h of summaryDayTotals(); track $index) {
-                      <td class="text-center py-1 px-2 font-semibold tabular-nums"
-                          [class.text-gray-300]="h === 0"
-                          [class.text-gray-700]="h > 0">{{ h > 0 ? formatHM(h) : '-' }}</td>
-                    }
-                    <td class="text-right py-1 pl-3 font-bold tabular-nums text-gray-800">{{ formatHM(weekTotalHours()) }}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          }
+        <div class="flex items-center gap-3 px-4 py-1 border-b border-gray-100 bg-gray-50/20 overflow-x-auto">
+          <span class="text-[10px] font-bold text-gray-400 tabular-nums whitespace-nowrap">
+            {{ formatHM(weekTotalHours()) }}
+          </span>
+          <div class="flex items-center gap-2 min-w-0">
+            @for (ps of weekProjectSummary(); track ps.pid) {
+              <div class="flex items-center gap-1 whitespace-nowrap">
+                <div class="w-1.5 h-1.5 rounded-full flex-shrink-0" [style.background-color]="ps.color"></div>
+                <span class="text-[10px] text-gray-500">{{ ps.name }}</span>
+                <span class="text-[10px] font-semibold tabular-nums" [style.color]="ps.color">{{ formatHM(ps.hours) }}</span>
+              </div>
+            }
+          </div>
         </div>
       }
 
@@ -144,6 +91,14 @@ const HOUR_HEIGHT = 64;
               <div class="text-[10px] font-medium mt-0.5"
                    [class.text-indigo-500]="day.isToday"
                    [class.text-gray-400]="!day.isToday">{{ formatHM(day.totalHours) }}</div>
+              <div class="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0 mt-0.5 px-1">
+                @for (ps of dayProjectSummary().get(day.date.toISOString()) ?? []; track ps.pid) {
+                  <div class="flex items-center gap-0.5">
+                    <div class="w-1.5 h-1.5 rounded-full" [style.background-color]="ps.color"></div>
+                    <span class="text-[9px] tabular-nums" [style.color]="ps.color">{{ formatHM(ps.hours) }}</span>
+                  </div>
+                }
+              </div>
             }
             <button
               class="absolute top-1 right-1 w-5 h-5 rounded-full text-[9px] font-bold leading-none
@@ -786,44 +741,26 @@ export class WeekViewComponent {
     this.weekProjectSummary().reduce((sum, p) => sum + p.hours, 0)
   );
 
-  readonly summaryExpanded = signal(false);
-
-  readonly summaryTable = computed(() => {
-    const daysList = this.days();
+  readonly dayProjectSummary = computed(() => {
     const projectMap = this.projectStore.projectMap();
-    const pidSet = new Map<string, { name: string; color: string; perDay: number[] }>();
+    const result = new Map<string, { pid: string; name: string; color: string; hours: number }[]>();
 
-    for (let i = 0; i < daysList.length; i++) {
-      for (const e of daysList[i].entries) {
+    for (const day of this.days()) {
+      if (day.entries.length === 0) continue;
+      const hoursByProject = new Map<string, number>();
+      for (const e of day.entries) {
         const pid = e.projectId ?? '__none__';
-        if (!pidSet.has(pid)) {
-          const p = pid === '__none__' ? null : projectMap.get(pid);
-          pidSet.set(pid, {
-            name: p?.name ?? 'Ohne Projekt',
-            color: p?.color ?? '#9CA3AF',
-            perDay: new Array(daysList.length).fill(0),
-          });
-        }
-        pidSet.get(pid)!.perDay[i] += (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000;
+        hoursByProject.set(pid, (hoursByProject.get(pid) ?? 0) + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000);
       }
+      const summary = [...hoursByProject.entries()]
+        .map(([pid, hours]) => {
+          const p = pid === '__none__' ? null : projectMap.get(pid);
+          return { pid, name: p?.name ?? 'Ohne Projekt', color: p?.color ?? '#9CA3AF', hours };
+        })
+        .sort((a, b) => b.hours - a.hours);
+      result.set(day.date.toISOString(), summary);
     }
-
-    return [...pidSet.entries()]
-      .map(([pid, data]) => ({
-        pid,
-        ...data,
-        total: data.perDay.reduce((a, b) => a + b, 0),
-      }))
-      .sort((a, b) => b.total - a.total);
-  });
-
-  readonly summaryDayTotals = computed(() => {
-    const daysList = this.days();
-    const totals = new Array(daysList.length).fill(0);
-    for (const row of this.summaryTable()) {
-      row.perDay.forEach((h, i) => totals[i] += h);
-    }
-    return totals;
+    return result;
   });
 
   formatHM(hours: number): string {
@@ -840,7 +777,6 @@ export class WeekViewComponent {
       this.undoStore.pushDelete(entries);
       this.timeEntryStore.removeEntries(entries.map(e => e.id));
     }
-    this.calendarStore.clearEvents();
   }
 
   toggleVacation(day: { date: Date; entries: TimeEntry[]; isVacation: boolean }) {
