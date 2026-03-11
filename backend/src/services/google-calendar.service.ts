@@ -1,0 +1,40 @@
+import { google } from 'googleapis';
+import { Credentials } from 'google-auth-library';
+import { createOAuth2Client } from '../config/oauth.config.js';
+
+interface EventListParams {
+  timeMin: string;
+  timeMax: string;
+  calendarId: string;
+}
+
+export async function listEvents(tokens: Credentials, params: EventListParams) {
+  const auth = createOAuth2Client();
+  auth.setCredentials(tokens);
+
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  const res = await calendar.events.list({
+    calendarId: params.calendarId,
+    timeMin: params.timeMin,
+    timeMax: params.timeMax,
+    singleEvents: true,
+    orderBy: 'startTime',
+    maxResults: 250,
+  });
+
+  // Check if token was refreshed and return new tokens
+  const newTokens = auth.credentials;
+
+  const events = (res.data.items ?? [])
+    .filter(e => e.start?.dateTime && e.end?.dateTime)
+    .map(e => ({
+      id: e.id,
+      summary: e.summary ?? '(Kein Titel)',
+      description: e.description ?? '',
+      start: { dateTime: e.start!.dateTime! },
+      end: { dateTime: e.end!.dateTime! },
+    }));
+
+  return { events, tokens: newTokens };
+}
