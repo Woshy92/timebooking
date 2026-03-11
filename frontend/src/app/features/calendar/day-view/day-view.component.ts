@@ -11,6 +11,7 @@ import { TimeEntry } from '../../../domain/models/time-entry.model';
 import { Project } from '../../../domain/models/project.model';
 import { CalendarEvent } from '../../../domain/models/calendar-event.model';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
+import { ClearConfirmPopoverComponent } from '../../../shared/components/clear-confirm-popover/clear-confirm-popover.component';
 import { DraftEntry, PopoverState, START_HOUR, END_HOUR, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
 import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as calcEntryWidth } from '../../../shared/utils/overlap-layout';
 import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
@@ -21,7 +22,7 @@ const HOUR_HEIGHT = 72;
 @Component({
   selector: 'app-day-view',
   standalone: true,
-  imports: [DurationPipe, FormsModule, ProjectPillsBarComponent],
+  imports: [DurationPipe, FormsModule, ProjectPillsBarComponent, ClearConfirmPopoverComponent],
   template: `
     <div class="flex flex-col h-full bg-white">
       <!-- Day header -->
@@ -42,31 +43,12 @@ const HOUR_HEIGHT = 72;
         </button>
 
         <app-project-pills-bar class="ml-auto flex-1 min-w-0 max-w-md" />
-        <div class="relative">
-          <button (click)="confirmClear.set(true)"
-            class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-            title="Tag leeren">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-            </svg>
-          </button>
-          @if (confirmClear()) {
-            <div class="fixed inset-0 z-30" (click)="confirmClear.set(false)"></div>
-            <div class="absolute top-full right-0 mt-1 w-56 bg-white rounded-xl shadow-xl border border-gray-200 p-3 z-40 animate-pop-in">
-              <p class="text-xs text-gray-600 mb-2">Alle <strong>{{ dayEntryCount() }}</strong> Einträge dieses Tages löschen?</p>
-              <div class="flex gap-2">
-                <button (click)="confirmClear.set(false)"
-                  class="flex-1 px-3 py-1.5 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 transition-colors">
-                  Abbrechen
-                </button>
-                <button (click)="clearView()"
-                  class="flex-1 px-3 py-1.5 text-xs rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors">
-                  Löschen
-                </button>
-              </div>
-            </div>
-          }
-        </div>
+        <app-clear-confirm-popover
+          [entryCount]="dayEntryCount()"
+          label="dieses Tages"
+          title="Tag leeren"
+          (confirm)="clearView()"
+        />
       </div>
 
       <!-- Time grid -->
@@ -253,7 +235,6 @@ export class DayViewComponent {
   draft = signal<DraftEntry | null>(null);
   popover = signal<PopoverState | null>(null);
   selectedEntryIds = signal<Set<string>>(new Set());
-  confirmClear = signal(false);
 
   readonly dayEntryCount = computed(() => this.entries().length);
 
@@ -466,7 +447,6 @@ export class DayViewComponent {
     for (const entry of this.entries()) {
       this.timeEntryStore.removeEntry(entry.id);
     }
-    this.confirmClear.set(false);
   }
 
   getEntryLeft(entryId: string): string {
