@@ -10,23 +10,9 @@ import { TimeEntry } from '../../../domain/models/time-entry.model';
 import { Project } from '../../../domain/models/project.model';
 import { CalendarEvent } from '../../../domain/models/calendar-event.model';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
+import { DraftEntry, PopoverState, START_HOUR, END_HOUR, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
 
 const HOUR_HEIGHT = 64;
-const START_HOUR = 6;
-const END_HOUR = 21;
-const SNAP_MINUTES = 15;
-
-interface DraftEntry {
-  date: Date;
-  startHour: number;
-  endHour: number;
-  title: string;
-}
-
-interface PopoverState {
-  x: number;
-  y: number;
-}
 
 @Component({
   selector: 'app-week-view',
@@ -308,7 +294,7 @@ export class WeekViewComponent {
   popover = signal<PopoverState | null>(null);
   selectedEntryIds = signal<Set<string>>(new Set());
   confirmClear = signal(false);
-  fitToScreen = signal(false);
+  fitToScreen = signal(true);
   private containerHeight = signal(0);
 
   readonly hourHeight = computed(() => {

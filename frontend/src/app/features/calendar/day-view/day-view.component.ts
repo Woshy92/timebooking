@@ -11,22 +11,9 @@ import { TimeEntry } from '../../../domain/models/time-entry.model';
 import { Project } from '../../../domain/models/project.model';
 import { CalendarEvent } from '../../../domain/models/calendar-event.model';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
+import { DraftEntry, PopoverState, START_HOUR, END_HOUR, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
 
 const HOUR_HEIGHT = 72;
-const START_HOUR = 6;
-const END_HOUR = 21;
-const SNAP_MINUTES = 15;
-
-interface DraftEntry {
-  startHour: number;
-  endHour: number;
-  title: string;
-}
-
-interface PopoverState {
-  x: number;
-  y: number;
-}
 
 @Component({
   selector: 'app-day-view',
@@ -349,7 +336,7 @@ export class DayViewComponent {
     const y = this.getYInGrid(event);
     const hour = this.snapHalf(START_HOUR + y / HOUR_HEIGHT);
 
-    this.draft.set({ startHour: hour, endHour: hour + 0.5, title: '' });
+    this.draft.set({ date: this.ui.activeDate(), startHour: hour, endHour: hour + 0.5, title: '' });
     setTimeout(() => this.draftInput()?.nativeElement?.focus(), 0);
 
     const onMove = (e: MouseEvent) => {
@@ -374,9 +361,8 @@ export class DayViewComponent {
 
   saveDraft() {
     const d = this.draft(); if (!d) return;
-    const date = this.ui.activeDate();
-    const start = new Date(date); start.setHours(Math.floor(d.startHour), (d.startHour % 1) * 60, 0, 0);
-    const end = new Date(date); end.setHours(Math.floor(d.endHour), (d.endHour % 1) * 60, 0, 0);
+    const start = new Date(d.date); start.setHours(Math.floor(d.startHour), (d.startHour % 1) * 60, 0, 0);
+    const end = new Date(d.date); end.setHours(Math.floor(d.endHour), (d.endHour % 1) * 60, 0, 0);
     const projectId = this.ui.defaultProjectId() ?? undefined;
     this.timeEntryStore.addEntry({ title: d.title || 'Ohne Beschreibung', start, end, source: 'manual', projectId });
     this.draft.set(null);
