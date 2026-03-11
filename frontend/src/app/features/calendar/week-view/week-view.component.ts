@@ -91,14 +91,14 @@ const HOUR_HEIGHT = 64;
               <div class="text-[10px] font-medium mt-0.5"
                    [class.text-indigo-500]="day.isToday"
                    [class.text-gray-400]="!day.isToday">{{ formatHM(day.totalHours) }}</div>
-              <div class="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0 mt-0.5 px-1">
-                @for (ps of dayProjectSummary().get(day.date.toISOString()) ?? []; track ps.pid) {
-                  <div class="flex items-center gap-0.5">
-                    <div class="w-1.5 h-1.5 rounded-full" [style.background-color]="ps.color"></div>
-                    <span class="text-[9px] tabular-nums" [style.color]="ps.color">{{ formatHM(ps.hours) }}</span>
-                  </div>
-                }
-              </div>
+              @if ((dayProjectSummary().get(day.date.toISOString()) ?? []).length > 1) {
+                <div class="flex mx-auto mt-1 h-1 rounded-full overflow-hidden" style="width: 60%">
+                  @for (ps of dayProjectSummary().get(day.date.toISOString()) ?? []; track ps.pid) {
+                    <div class="h-full" [style.background-color]="ps.color"
+                         [style.flex-basis.%]="ps.hours / day.totalHours * 100"></div>
+                  }
+                </div>
+              }
             }
             <button
               class="absolute top-1 right-1 w-5 h-5 rounded-full text-[9px] font-bold leading-none
