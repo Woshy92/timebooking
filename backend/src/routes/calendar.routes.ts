@@ -4,7 +4,7 @@ import { listEvents } from '../services/google-calendar.service.js';
 
 const router = Router();
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/;
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 const CALENDAR_ID_RE = /^(primary|[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})$/;
 
 router.get('/events', requireAuth, async (req, res) => {
