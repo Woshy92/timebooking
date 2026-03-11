@@ -18,6 +18,7 @@ import { DraftEntry, PopoverState, START_HOUR, END_HOUR, SNAP_MINUTES } from '..
 import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as calcEntryWidth } from '../../../shared/utils/overlap-layout';
 import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
 import { getEntryColor as calcEntryColor, getEntryBg as calcEntryBg, getEntryTextColor as calcEntryTextColor, getProject as calcProject } from '../../../shared/utils/entry-styling';
+import { startAutoScroll } from '../../../shared/utils/auto-scroll';
 
 const HOUR_HEIGHT = 64;
 
@@ -413,7 +414,12 @@ export class WeekViewComponent {
     this.draft.set({ date, startHour: hour, endHour: hour + 0.5, title: '' });
     setTimeout(() => this.draftInput()?.nativeElement?.focus(), 0);
 
+    let lastClientY = event.clientY;
+    const container = this.scrollContainer()?.nativeElement;
+    const stopScroll = container ? startAutoScroll(container, () => lastClientY) : null;
+
     const onMove = (e: MouseEvent) => {
+      lastClientY = e.clientY;
       const currentY = this.getYInColumn(e);
       const currentHour = snapToGrid(START_HOUR + currentY / this.hourHeight(), SNAP_MINUTES);
       const d = this.draft();
@@ -423,6 +429,7 @@ export class WeekViewComponent {
       }
     };
     const onUp = () => {
+      stopScroll?.();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       setTimeout(() => this.draftInput()?.nativeElement?.focus(), 0);
@@ -504,7 +511,11 @@ export class WeekViewComponent {
     this.resizeStartY = event.clientY;
     const endDate = new Date(entry.end);
     this.resizeStartEndHour = endDate.getHours() + endDate.getMinutes() / 60;
+    let lastClientY = event.clientY;
+    const container = this.scrollContainer()?.nativeElement;
+    const stopScroll = container ? startAutoScroll(container, () => lastClientY) : null;
     const onMove = (e: MouseEvent) => {
+      lastClientY = e.clientY;
       const startDate = new Date(entry.start);
       const startHour = startDate.getHours() + startDate.getMinutes() / 60;
       const newEndHour = snapToGrid(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / this.hourHeight(), SNAP_MINUTES);
@@ -513,6 +524,7 @@ export class WeekViewComponent {
       this.resizeOverride.set({ entryId: entry.id, end: newEnd });
     };
     const onUp = () => {
+      stopScroll?.();
       const override = this.resizeOverride();
       if (override) {
         this.timeEntryStore.updateEntry(override.entryId, { end: override.end });

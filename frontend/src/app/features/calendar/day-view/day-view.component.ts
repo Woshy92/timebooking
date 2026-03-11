@@ -19,6 +19,7 @@ import { DraftEntry, PopoverState, START_HOUR, END_HOUR, SNAP_MINUTES } from '..
 import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as calcEntryWidth } from '../../../shared/utils/overlap-layout';
 import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
 import { getEntryColor as calcEntryColor, getProject as calcProject } from '../../../shared/utils/entry-styling';
+import { startAutoScroll } from '../../../shared/utils/auto-scroll';
 
 const HOUR_HEIGHT = 72;
 
@@ -288,13 +289,19 @@ export class DayViewComponent {
     this.draft.set({ date: this.ui.activeDate(), startHour: hour, endHour: hour + 0.5, title: '' });
     setTimeout(() => this.draftInput()?.nativeElement?.focus(), 0);
 
+    let lastClientY = event.clientY;
+    const container = this.scrollContainer()?.nativeElement;
+    const stopScroll = container ? startAutoScroll(container, () => lastClientY) : null;
+
     const onMove = (e: MouseEvent) => {
+      lastClientY = e.clientY;
       const curY = this.getYInGrid(e);
       const curHour = snapToGrid(START_HOUR + curY / HOUR_HEIGHT, SNAP_MINUTES);
       const d = this.draft()!;
       this.draft.set({ ...d, endHour: Math.min(Math.max(curHour, d.startHour + 0.25), END_HOUR) });
     };
     const onUp = () => {
+      stopScroll?.();
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       setTimeout(() => this.draftInput()?.nativeElement?.focus(), 0);
@@ -338,7 +345,11 @@ export class DayViewComponent {
     this.resizeStartY = event.clientY;
     const ed = new Date(entry.end);
     this.resizeStartEndHour = ed.getHours() + ed.getMinutes() / 60;
+    let lastClientY = event.clientY;
+    const container = this.scrollContainer()?.nativeElement;
+    const stopScroll = container ? startAutoScroll(container, () => lastClientY) : null;
     const onMove = (e: MouseEvent) => {
+      lastClientY = e.clientY;
       const sd = new Date(entry.start);
       const startH = sd.getHours() + sd.getMinutes() / 60;
       const newEnd = snapToGrid(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / HOUR_HEIGHT, SNAP_MINUTES);
@@ -347,6 +358,7 @@ export class DayViewComponent {
       this.resizeOverride.set({ entryId: entry.id, end: ne });
     };
     const onUp = () => {
+      stopScroll?.();
       const override = this.resizeOverride();
       if (override) {
         this.timeEntryStore.updateEntry(override.entryId, { end: override.end });
