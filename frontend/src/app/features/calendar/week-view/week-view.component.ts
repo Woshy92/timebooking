@@ -11,6 +11,7 @@ import { Project } from '../../../domain/models/project.model';
 import { CalendarEvent } from '../../../domain/models/calendar-event.model';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
 import { DraftEntry, PopoverState, START_HOUR, END_HOUR, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
+import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as calcEntryWidth } from '../../../shared/utils/overlap-layout';
 
 const HOUR_HEIGHT = 64;
 
@@ -380,23 +381,17 @@ export class WeekViewComponent {
   readonly entryLayout = computed(() => {
     const result = new Map<string, { col: number; total: number }>();
     for (const day of this.days()) {
-      this.computeOverlapLayout(day.entries, result);
+      computeOverlapLayout(day.entries, result);
     }
     return result;
   });
 
   getEntryLeft(entryId: string): string {
-    const l = this.entryLayout().get(entryId);
-    if (!l || l.total <= 1) return '6px';
-    const pct = l.col / l.total;
-    return `calc(${(6 - pct * 12).toFixed(2)}px + ${(pct * 100).toFixed(2)}%)`;
+    return calcEntryLeft(this.entryLayout(), entryId, 6);
   }
 
   getEntryWidth(entryId: string): string {
-    const l = this.entryLayout().get(entryId);
-    if (!l || l.total <= 1) return 'calc(100% - 12px)';
-    const frac = 1 / l.total;
-    return `calc(${(frac * 100).toFixed(2)}% - ${(frac * 12 + 1).toFixed(2)}px)`;
+    return calcEntryWidth(this.entryLayout(), entryId, 12, 1);
   }
 
   // ─── Multi-select & Popover ─────────────────────────────
@@ -590,40 +585,4 @@ export class WeekViewComponent {
   private snapToGrid(hour: number): number { const step = SNAP_MINUTES / 60; return Math.round(hour / step) * step; }
   private hourToStr(hour: number): string { const h = Math.floor(hour); const m = Math.round((hour % 1) * 60); return `${h < 10 ? '0' + h : h}:${m < 10 ? '0' + m : m}`; }
 
-  private computeOverlapLayout(entries: TimeEntry[], result: Map<string, { col: number; total: number }>) {
-    if (entries.length === 0) return;
-    const sorted = [...entries].sort((a, b) =>
-      new Date(a.start).getTime() - new Date(b.start).getTime() ||
-      new Date(b.end).getTime() - new Date(a.end).getTime()
-    );
-    const clusters: TimeEntry[][] = [];
-    let cluster: TimeEntry[] = [];
-    let clusterEnd = 0;
-    for (const entry of sorted) {
-      const s = new Date(entry.start).getTime();
-      const e = new Date(entry.end).getTime();
-      if (cluster.length === 0 || s < clusterEnd) {
-        cluster.push(entry);
-        clusterEnd = Math.max(clusterEnd, e);
-      } else {
-        clusters.push(cluster);
-        cluster = [entry];
-        clusterEnd = e;
-      }
-    }
-    if (cluster.length > 0) clusters.push(cluster);
-    for (const c of clusters) {
-      const colEnds: number[] = [];
-      for (const entry of c) {
-        const s = new Date(entry.start).getTime();
-        let col = colEnds.findIndex(end => end <= s);
-        if (col === -1) { col = colEnds.length; colEnds.push(0); }
-        colEnds[col] = new Date(entry.end).getTime();
-        result.set(entry.id, { col, total: 0 });
-      }
-      for (const entry of c) {
-        result.get(entry.id)!.total = colEnds.length;
-      }
-    }
-  }
 }
