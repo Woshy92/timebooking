@@ -12,6 +12,7 @@ import { Project } from '../../../domain/models/project.model';
 import { CalendarEvent } from '../../../domain/models/calendar-event.model';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
 import { ClearConfirmPopoverComponent } from '../../../shared/components/clear-confirm-popover/clear-confirm-popover.component';
+import { ProjectPopoverComponent } from '../../../shared/components/project-popover/project-popover.component';
 import { DraftEntry, PopoverState, START_HOUR, END_HOUR, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
 import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as calcEntryWidth } from '../../../shared/utils/overlap-layout';
 import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
@@ -22,7 +23,7 @@ const HOUR_HEIGHT = 64;
 @Component({
   selector: 'app-week-view',
   standalone: true,
-  imports: [FormsModule, ProjectPillsBarComponent, ClearConfirmPopoverComponent],
+  imports: [FormsModule, ProjectPillsBarComponent, ClearConfirmPopoverComponent, ProjectPopoverComponent],
   template: `
     <div class="flex flex-col h-full bg-white">
       <!-- Default project bar -->
@@ -207,58 +208,22 @@ const HOUR_HEIGHT = 64;
 
     <!-- Project popover -->
     @if (popover(); as pop) {
-      <div class="fixed inset-0 z-40" (click)="closePopover()"></div>
-      <div
-        class="fixed z-50 w-52 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 animate-pop-in"
-        [style.left.px]="pop.x"
-        [style.top.px]="pop.y"
-      >
-        <div class="px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-          @if (selectedEntryIds().size > 1) {
-            {{ selectedEntryIds().size }} Einträge · Projekt zuweisen
-          } @else {
-            Projekt zuweisen
-          }
-        </div>
-        @for (project of projectStore.activeProjects(); track project.id) {
-          <button
-            (click)="assignProject(project.id)"
-            class="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-gray-50 transition-colors text-left"
-            [class.bg-indigo-50]="commonProjectId() === project.id"
-            [class.font-semibold]="commonProjectId() === project.id"
-          >
-            <div class="w-3 h-3 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
-            <span class="text-gray-800 truncate">{{ project.name }}</span>
-            @if (commonProjectId() === project.id) {
-              <svg class="w-3.5 h-3.5 text-indigo-500 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-              </svg>
-            }
-          </button>
-        }
-        <div class="border-t border-gray-100 mt-1 pt-1">
-          <button
-            (click)="deleteEntries()"
-            class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors text-left"
-          >
-            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-            </svg>
-            @if (selectedEntryIds().size > 1) {
-              <span>{{ selectedEntryIds().size }} Einträge löschen</span>
-            } @else {
-              <span>Eintrag löschen</span>
-            }
-          </button>
-        </div>
-      </div>
+      <app-project-popover
+        [x]="pop.x"
+        [y]="pop.y"
+        [selectedCount]="selectedEntryIds().size"
+        [commonProjectId]="commonProjectId()"
+        (assign)="assignProject($event)"
+        (delete)="deleteEntries()"
+        (close)="closePopover()"
+      />
     }
   `,
   styles: [`:host { display: flex; flex-direction: column; height: 100%; }`],
 })
 export class WeekViewComponent {
   private readonly timeEntryStore = inject(TimeEntryStore);
-  protected readonly projectStore = inject(ProjectStore);
+  private readonly projectStore = inject(ProjectStore);
   private readonly calendarStore = inject(CalendarStore);
   protected readonly uiStore = inject(UiStore);
   private readonly calendarSyncService = inject(CalendarSyncService);
