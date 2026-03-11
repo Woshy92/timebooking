@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, effect, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { UiStore } from '../../../state/ui.store';
 import { ExportService } from '../../../application/export.service';
@@ -26,12 +26,12 @@ import { format } from 'date-fns';
         <div class="p-5 space-y-5 flex-1">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Von</label>
-            <input type="date" [(ngModel)]="fromDate"
+            <input type="date" [ngModel]="fromDate()" (ngModelChange)="fromDate.set($event)"
                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Bis</label>
-            <input type="date" [(ngModel)]="toDate"
+            <input type="date" [ngModel]="toDate()" (ngModelChange)="toDate.set($event)"
                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900" />
           </div>
 
@@ -92,14 +92,23 @@ export class ExportPanelComponent {
   protected readonly ui = inject(UiStore);
   private readonly exportService = inject(ExportService);
 
-  fromDate = format(this.ui.weekStart(), 'yyyy-MM-dd');
-  toDate = format(this.ui.weekEnd(), 'yyyy-MM-dd');
+  fromDate = signal(format(this.ui.weekStart(), 'yyyy-MM-dd'));
+  toDate = signal(format(this.ui.weekEnd(), 'yyyy-MM-dd'));
   includeSummary = true;
+
+  constructor() {
+    effect(() => {
+      if (this.ui.isExportPanelOpen()) {
+        this.fromDate.set(format(this.ui.weekStart(), 'yyyy-MM-dd'));
+        this.toDate.set(format(this.ui.weekEnd(), 'yyyy-MM-dd'));
+      }
+    });
+  }
 
   onExport(fmt: 'pdf' | 'csv') {
     this.exportService.export(fmt, {
-      from: new Date(this.fromDate),
-      to: new Date(this.toDate + 'T23:59:59'),
+      from: new Date(this.fromDate()),
+      to: new Date(this.toDate() + 'T23:59:59'),
     }, this.includeSummary);
   }
 }
