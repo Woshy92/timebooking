@@ -63,6 +63,23 @@ export function createApp() {
     next();
   });
 
+  // Request logging in development
+  if (process.env.NODE_ENV !== 'production') {
+    app.use((req, res, next) => {
+      const start = Date.now();
+      res.on('finish', () => {
+        const ms = Date.now() - start;
+        const status = res.statusCode;
+        const color = status >= 400 ? '\x1b[31m' : status >= 300 ? '\x1b[33m' : '\x1b[32m';
+        console.log(`${color}${req.method} ${req.originalUrl} ${status}\x1b[0m ${ms}ms`);
+        if (status >= 400 && req.query) {
+          console.log('  query:', req.query);
+        }
+      });
+      next();
+    });
+  }
+
   app.use('/auth', authRoutes);
   app.use('/api/calendar', calendarRoutes);
 
