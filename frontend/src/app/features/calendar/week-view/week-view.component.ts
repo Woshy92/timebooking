@@ -5,6 +5,7 @@ import { ProjectStore } from '../../../state/project.store';
 import { CalendarStore } from '../../../state/calendar.store';
 import { UiStore } from '../../../state/ui.store';
 import { CalendarSyncService } from '../../../application/calendar-sync.service';
+import { UndoStore } from '../../../state/undo.store';
 import { format, eachDayOfInterval, isSameDay, startOfDay, isWeekend } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { TimeEntry } from '../../../domain/models/time-entry.model';
@@ -46,6 +47,24 @@ const HOUR_HEIGHT = 64;
           (confirm)="clearView()"
         />
       </div>
+
+      <!-- Weekly project summary -->
+      @if (weekTotalHours() > 0) {
+        <div class="flex items-center gap-3 px-4 py-1 border-b border-gray-100 bg-gray-50/20 overflow-x-auto">
+          <span class="text-[10px] font-bold text-gray-400 tabular-nums whitespace-nowrap">
+            {{ weekTotalHours().toFixed(1) }}h
+          </span>
+          <div class="flex items-center gap-2 min-w-0">
+            @for (ps of weekProjectSummary(); track ps.name) {
+              <div class="flex items-center gap-1 whitespace-nowrap">
+                <div class="w-1.5 h-1.5 rounded-full flex-shrink-0" [style.background-color]="ps.color"></div>
+                <span class="text-[10px] text-gray-500">{{ ps.name }}</span>
+                <span class="text-[10px] font-semibold tabular-nums" [style.color]="ps.color">{{ ps.hours.toFixed(1) }}h</span>
+              </div>
+            }
+          </div>
+        </div>
+      }
 
       <!-- Day headers -->
       <div class="flex border-b border-gray-200/80 bg-white sticky top-0 z-20 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
@@ -236,6 +255,7 @@ export class WeekViewComponent {
   private readonly calendarStore = inject(CalendarStore);
   protected readonly uiStore = inject(UiStore);
   private readonly calendarSyncService = inject(CalendarSyncService);
+  private readonly undoStore = inject(UndoStore);
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -357,8 +377,11 @@ export class WeekViewComponent {
   }
 
   deleteEntries() {
-    for (const entryId of this.selectedEntryIds()) {
-      this.timeEntryStore.removeEntry(entryId);
+    const ids = [...this.selectedEntryIds()];
+    const entries = this.timeEntryStore.entries().filter(e => ids.includes(e.id));
+    if (entries.length > 0) {
+      this.undoStore.pushDelete(entries);
+      this.timeEntryStore.removeEntries(ids);
     }
     this.closePopover();
   }
@@ -528,9 +551,37 @@ export class WeekViewComponent {
     this.days().reduce((sum, day) => sum + day.entries.length, 0)
   );
 
+  readonly weekProjectSummary = computed(() => {
+    const entries = this.days().flatMap(d => d.entries);
+    const map = new Map<string, number>();
+    for (const e of entries) {
+      const pid = e.projectId ?? '__none__';
+      map.set(pid, (map.get(pid) ?? 0) + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000);
+    }
+    const projectMap = this.projectStore.projectMap();
+    const result: { name: string; color: string; hours: number }[] = [];
+    for (const [pid, hours] of map) {
+      if (pid === '__none__') {
+        result.push({ name: 'Ohne Projekt', color: '#9CA3AF', hours });
+      } else {
+        const p = projectMap.get(pid);
+        if (p) result.push({ name: p.name, color: p.color, hours });
+      }
+    }
+    result.sort((a, b) => b.hours - a.hours);
+    return result;
+  });
+
+  readonly weekTotalHours = computed(() =>
+    this.weekProjectSummary().reduce((sum, p) => sum + p.hours, 0)
+  );
+
   clearView() {
-    const ids = this.days().flatMap(day => day.entries.map(e => e.id));
-    if (ids.length > 0) this.timeEntryStore.removeEntries(ids);
+    const entries = this.days().flatMap(day => day.entries);
+    if (entries.length > 0) {
+      this.undoStore.pushDelete(entries);
+      this.timeEntryStore.removeEntries(entries.map(e => e.id));
+    }
   }
 
 }

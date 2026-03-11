@@ -5,6 +5,7 @@ import { ProjectStore } from '../../../state/project.store';
 import { CalendarStore } from '../../../state/calendar.store';
 import { UiStore } from '../../../state/ui.store';
 import { CalendarSyncService } from '../../../application/calendar-sync.service';
+import { UndoStore } from '../../../state/undo.store';
 import { DurationPipe } from '../../../shared/pipes/duration.pipe';
 import { format, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -201,6 +202,7 @@ export class DayViewComponent {
   private readonly projectStore = inject(ProjectStore);
   private readonly calendarStore = inject(CalendarStore);
   private readonly calendarSyncService = inject(CalendarSyncService);
+  private readonly undoStore = inject(UndoStore);
 
   readonly scrollContainer = viewChild<ElementRef>('scrollContainer');
   readonly draftInput = viewChild<ElementRef>('draftInput');
@@ -398,8 +400,11 @@ export class DayViewComponent {
   }
 
   deleteEntries() {
-    for (const entryId of this.selectedEntryIds()) {
-      this.timeEntryStore.removeEntry(entryId);
+    const ids = [...this.selectedEntryIds()];
+    const entries = this.timeEntryStore.entries().filter(e => ids.includes(e.id));
+    if (entries.length > 0) {
+      this.undoStore.pushDelete(entries);
+      this.timeEntryStore.removeEntries(ids);
     }
     this.closePopover();
   }
@@ -431,8 +436,11 @@ export class DayViewComponent {
   formatTime = formatTime;
 
   clearView() {
-    const ids = this.entries().map(e => e.id);
-    if (ids.length > 0) this.timeEntryStore.removeEntries(ids);
+    const entries = this.entries();
+    if (entries.length > 0) {
+      this.undoStore.pushDelete(entries);
+      this.timeEntryStore.removeEntries(entries.map(e => e.id));
+    }
   }
 
   getEntryLeft(entryId: string): string {

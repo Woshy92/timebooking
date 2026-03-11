@@ -7,6 +7,7 @@ import { WeekNavigatorComponent } from './shared/components/week-navigator/week-
 import { TimeEntryModalComponent } from './features/time-entry/time-entry-modal/time-entry-modal.component';
 import { ExportPanelComponent } from './features/export/export-panel/export-panel.component';
 import { ErrorToastComponent } from './shared/components/error-toast/error-toast.component';
+import { UndoToastComponent } from './shared/components/undo-toast/undo-toast.component';
 import { environment } from '../environments/environment';
 
 @Component({
@@ -14,7 +15,7 @@ import { environment } from '../environments/environment';
   standalone: true,
   imports: [
     RouterOutlet, RouterLink, RouterLinkActive,
-    WeekNavigatorComponent, TimeEntryModalComponent, ExportPanelComponent, ErrorToastComponent,
+    WeekNavigatorComponent, TimeEntryModalComponent, ExportPanelComponent, ErrorToastComponent, UndoToastComponent,
   ],
   template: `
     <!-- Top navigation bar -->
@@ -136,6 +137,7 @@ import { environment } from '../environments/environment';
     <app-time-entry-modal />
     <app-export-panel />
     <app-error-toast />
+    <app-undo-toast />
   `,
   styles: [`
     :host {
