@@ -28,10 +28,15 @@ export async function listEvents(tokens: Credentials, params: EventListParams) {
 
   const events = (res.data.items ?? [])
     .filter(e => e.start?.dateTime && e.end?.dateTime)
+    .filter(e => !e.attendees?.some(a => a.self && a.responseStatus === 'declined'))
     .map(e => ({
       id: e.id,
       summary: e.summary ?? '(Kein Titel)',
       description: e.description ?? '',
+      attendees: (e.attendees ?? [])
+        .filter(a => !a.self)
+        .map(a => a.displayName || a.email || '')
+        .filter(Boolean),
       start: { dateTime: e.start!.dateTime! },
       end: { dateTime: e.end!.dateTime! },
     }));
