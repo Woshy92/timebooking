@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output, OnInit } from '@angular/core';
+import { Component, computed, inject, input, output, signal, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ProjectStore } from '../../../state/project.store';
 import { TimeEntry, CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../../../domain/models/time-entry.model';
@@ -32,11 +32,8 @@ const MAX_VISIBLE_ATTENDEES = 3;
           </svg>
           <div class="min-w-0 flex-1">
             <div class="text-xs font-medium text-blue-700">Importiert aus Google Calendar</div>
-            @if (cleanDescription()) {
-              <div class="text-xs text-blue-600/70 mt-1 whitespace-pre-line line-clamp-3">{{ cleanDescription() }}</div>
-            }
             @if (entry()?.attendees?.length) {
-              <div class="flex items-center gap-1 mt-1.5 text-xs text-blue-600/70">
+              <div class="flex items-center gap-1 mt-1 text-xs text-blue-600/70">
                 <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
                 </svg>
@@ -110,6 +107,21 @@ const MAX_VISIBLE_ATTENDEES = 3;
         ></textarea>
       </div>
 
+      @if (cleanDescription()) {
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Terminbeschreibung</label>
+          <div class="px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-600 whitespace-pre-line"
+               [class.line-clamp-4]="!descriptionExpanded()">{{ cleanDescription() }}</div>
+          @if (descriptionIsLong()) {
+            <button type="button"
+                    (click)="descriptionExpanded.set(!descriptionExpanded())"
+                    class="mt-1 text-xs text-indigo-600 hover:text-indigo-700">
+              {{ descriptionExpanded() ? 'Weniger anzeigen' : 'Mehr anzeigen' }}
+            </button>
+          }
+        </div>
+      }
+
       <div class="flex items-center justify-between pt-2">
         @if (entry()) {
           <button
@@ -155,9 +167,16 @@ export class TimeEntryFormComponent implements OnInit {
   protected readonly projectStore = inject(ProjectStore);
   private readonly fb = inject(FormBuilder);
 
+  protected readonly descriptionExpanded = signal(false);
+
   protected readonly cleanDescription = computed(() => {
     const desc = this.entry()?.description;
     return desc ? stripHtml(desc) : '';
+  });
+
+  protected readonly descriptionIsLong = computed(() => {
+    const lines = this.cleanDescription().split('\n');
+    return lines.length > 4 || this.cleanDescription().length > 200;
   });
 
   protected readonly attendeeSummary = computed(() => {
