@@ -111,7 +111,7 @@ const MAX_VISIBLE_ATTENDEES = 3;
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Terminbeschreibung</label>
           <div class="px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-600 whitespace-pre-line"
-               [class.line-clamp-4]="!descriptionExpanded()">{{ cleanDescription() }}</div>
+               [class.line-clamp-2]="!descriptionExpanded()">{{ cleanDescription() }}</div>
           @if (descriptionIsLong()) {
             <button type="button"
                     (click)="descriptionExpanded.set(!descriptionExpanded())"
@@ -176,7 +176,7 @@ export class TimeEntryFormComponent implements OnInit {
 
   protected readonly descriptionIsLong = computed(() => {
     const lines = this.cleanDescription().split('\n');
-    return lines.length > 4 || this.cleanDescription().length > 200;
+    return lines.length > 2 || this.cleanDescription().length > 120;
   });
 
   protected readonly attendeeSummary = computed(() => {
