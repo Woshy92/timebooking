@@ -138,7 +138,7 @@ const HOUR_HEIGHT = 64;
                 class="absolute rounded-md cursor-pointer z-[6]
                        shadow-sm hover:shadow-lg transition-all group"
                 [style.top.px]="getTopPosition(entry.start)"
-                [style.height.px]="getBlockHeight(entry.start, entry.end)"
+                [style.height.px]="getBlockHeight(entry.start, getEffectiveEnd(entry))"
                 [style.min-height.px]="26"
                 [style.left]="getEntryLeft(entry.id)"
                 [style.width]="getEntryWidth(entry.id)"
@@ -154,7 +154,7 @@ const HOUR_HEIGHT = 64;
                     {{ entry.title || 'Ohne Beschreibung' }}
                   </div>
                   <div class="text-[10px] tabular-nums flex-shrink overflow-hidden leading-tight" [style.color]="getEntryColor(entry)" style="opacity: 0.7">
-                    {{ formatTime(entry.start) }}–{{ formatTime(entry.end) }}
+                    {{ formatTime(entry.start) }}–{{ formatTime(getEffectiveEnd(entry)) }}
                   </div>
                   @if (getProject(entry); as p) {
                     <div class="text-[9px] font-semibold mt-auto truncate uppercase tracking-wide flex-shrink overflow-hidden" [style.color]="getEntryColor(entry)" style="opacity: 0.6">{{ p.name }}</div>
@@ -257,10 +257,10 @@ export class WeekViewComponent {
 
   readonly draftColor = computed(() => this.defaultProject()?.color ?? '#6366F1');
 
-  private resizingEntryId: string | null = null;
   private resizingDraft = false;
   private resizeStartY = 0;
   private resizeStartEndHour = 0;
+  resizeOverride = signal<{ entryId: string; end: Date } | null>(null);
 
   constructor() {
     afterNextRender(() => {
@@ -464,7 +464,6 @@ export class WeekViewComponent {
   // ─── Entry resize ──────────────────────────────────────
   onResizeStart(event: MouseEvent, entry: TimeEntry) {
     event.stopPropagation(); event.preventDefault();
-    this.resizingEntryId = entry.id;
     this.resizeStartY = event.clientY;
     const endDate = new Date(entry.end);
     this.resizeStartEndHour = endDate.getHours() + endDate.getMinutes() / 60;
@@ -474,15 +473,27 @@ export class WeekViewComponent {
       const newEndHour = snapToGrid(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / this.hourHeight(), SNAP_MINUTES);
       const clampedEnd = Math.max(newEndHour, startHour + 0.25);
       const newEnd = new Date(entry.end); newEnd.setHours(Math.floor(clampedEnd), (clampedEnd % 1) * 60, 0, 0);
-      this.timeEntryStore.updateEntry(entry.id, { end: newEnd });
+      this.resizeOverride.set({ entryId: entry.id, end: newEnd });
     };
-    const onUp = () => { this.resizingEntryId = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    const onUp = () => {
+      const override = this.resizeOverride();
+      if (override) {
+        this.timeEntryStore.updateEntry(override.entryId, { end: override.end });
+        this.resizeOverride.set(null);
+      }
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
   }
 
   // ─── Positioning & Styling ─────────────────────────────
   getTopPosition(start: Date): number { const d = new Date(start); return (d.getHours() + d.getMinutes() / 60 - START_HOUR) * this.hourHeight(); }
   getBlockHeight(start: Date, end: Date): number { return Math.max((new Date(end).getTime() - new Date(start).getTime()) / 3600000 * this.hourHeight(), 26); }
+  getEffectiveEnd(entry: TimeEntry): Date {
+    const override = this.resizeOverride();
+    return override && override.entryId === entry.id ? override.end : entry.end;
+  }
   getEntryColor(entry: TimeEntry): string { return calcEntryColor(entry, this.projectStore.projectMap()); }
   getEntryBg(entry: TimeEntry): string { return calcEntryBg(entry, this.projectStore.projectMap()); }
   getEntryTextColor(entry: TimeEntry): string { return calcEntryTextColor(entry, this.projectStore.projectMap()); }

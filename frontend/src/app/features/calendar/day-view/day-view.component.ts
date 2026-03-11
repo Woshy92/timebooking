@@ -110,7 +110,7 @@ const HOUR_HEIGHT = 72;
               class="absolute rounded-lg cursor-pointer z-[6]
                      shadow-sm hover:shadow-lg transition-all group"
               [style.top.px]="getTopPosition(entry.start)"
-              [style.height.px]="getBlockHeight(entry.start, entry.end)"
+              [style.height.px]="getBlockHeight(entry.start, getEffectiveEnd(entry))"
               [style.min-height.px]="34"
               [style.left]="getEntryLeft(entry.id)"
               [style.width]="getEntryWidth(entry.id)"
@@ -124,7 +124,7 @@ const HOUR_HEIGHT = 72;
               <div class="px-3 py-2 h-full flex flex-col overflow-hidden">
                 <div class="text-sm font-semibold" [style.color]="getEntryColor(entry)">{{ entry.title || 'Ohne Beschreibung' }}</div>
                 <div class="text-xs tabular-nums mt-0.5" [style.color]="getEntryColor(entry)" style="opacity: 0.6">
-                  {{ formatTime(entry.start) }}–{{ formatTime(entry.end) }} · {{ getDurationMinutes(entry) | duration }}
+                  {{ formatTime(entry.start) }}–{{ formatTime(getEffectiveEnd(entry)) }} · {{ getDurationMinutes(entry) | duration }}
                 </div>
                 @if (getProject(entry); as p) {
                   <div class="text-[10px] font-bold mt-auto truncate uppercase tracking-wider" [style.color]="getEntryColor(entry)" style="opacity: 0.5">{{ p.name }}</div>
@@ -221,6 +221,7 @@ export class DayViewComponent {
 
   private resizeStartY = 0;
   private resizeStartEndHour = 0;
+  resizeOverride = signal<{ entryId: string; end: Date } | null>(null);
 
   constructor() {
     afterNextRender(() => {
@@ -332,9 +333,17 @@ export class DayViewComponent {
       const newEnd = snapToGrid(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / HOUR_HEIGHT, SNAP_MINUTES);
       const clamped = Math.max(newEnd, startH + 0.25);
       const ne = new Date(entry.end); ne.setHours(Math.floor(clamped), (clamped % 1) * 60, 0, 0);
-      this.timeEntryStore.updateEntry(entry.id, { end: ne });
+      this.resizeOverride.set({ entryId: entry.id, end: ne });
     };
-    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    const onUp = () => {
+      const override = this.resizeOverride();
+      if (override) {
+        this.timeEntryStore.updateEntry(override.entryId, { end: override.end });
+        this.resizeOverride.set(null);
+      }
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   }
@@ -396,9 +405,13 @@ export class DayViewComponent {
     this.calendarSyncService.importEvent(calEvent);
   }
 
-  getDurationMinutes(entry: TimeEntry) { return (new Date(entry.end).getTime() - new Date(entry.start).getTime()) / 60000; }
+  getDurationMinutes(entry: TimeEntry) { const end = this.getEffectiveEnd(entry); return (new Date(end).getTime() - new Date(entry.start).getTime()) / 60000; }
   getTopPosition(start: Date) { const d = new Date(start); return (d.getHours() + d.getMinutes() / 60 - START_HOUR) * HOUR_HEIGHT; }
   getBlockHeight(start: Date, end: Date) { return Math.max((new Date(end).getTime() - new Date(start).getTime()) / 3600000 * HOUR_HEIGHT, 34); }
+  getEffectiveEnd(entry: TimeEntry): Date {
+    const override = this.resizeOverride();
+    return override && override.entryId === entry.id ? override.end : entry.end;
+  }
   getEntryColor(entry: TimeEntry) { return calcEntryColor(entry, this.projectStore.projectMap()); }
   getProject(entry: TimeEntry): Project | null { return calcProject(entry, this.projectStore.projectMap()); }
   formatTime = formatTime;
