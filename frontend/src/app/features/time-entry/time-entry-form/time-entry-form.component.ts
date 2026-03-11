@@ -9,9 +9,19 @@ function stripHtml(html: string): string {
   return doc.body.textContent?.trim() ?? '';
 }
 
-function formatAttendee(raw: string): string {
-  if (raw.includes('@')) return raw.split('@')[0].replace(/[._]/g, ' ');
-  return raw;
+interface AttendeeInfo {
+  email: string;
+  initials: string;
+}
+
+function parseAttendee(raw: string): AttendeeInfo {
+  const email = raw;
+  const local = email.split('@')[0];
+  const parts = local.split(/[._-]/).filter(Boolean);
+  const initials = parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : local.substring(0, 2).toUpperCase();
+  return { email, initials };
 }
 
 const MAX_VISIBLE_ATTENDEES = 3;
@@ -32,12 +42,21 @@ const MAX_VISIBLE_ATTENDEES = 3;
           </svg>
           <div class="min-w-0 flex-1">
             <div class="text-xs font-medium text-blue-700">Importiert aus Google Calendar</div>
-            @if (entry()?.attendees?.length) {
-              <div class="flex items-center gap-1 mt-1 text-xs text-blue-600/70">
-                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-                </svg>
-                <span>{{ attendeeSummary() }}</span>
+            @if (attendees().length) {
+              <div class="mt-2 text-xs text-blue-600/70">{{ attendees().length }} Teilnehmer</div>
+              <div class="mt-1.5 space-y-1.5">
+                @for (a of visibleAttendees(); track a.email) {
+                  <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center text-[10px] font-semibold flex-shrink-0">{{ a.initials }}</div>
+                    <span class="text-xs text-blue-700 truncate">{{ a.email }}</span>
+                  </div>
+                }
+                @if (attendees().length > MAX_VISIBLE_ATTENDEES) {
+                  <button type="button" (click)="attendeesExpanded.set(!attendeesExpanded())"
+                          class="text-xs text-indigo-600 hover:text-indigo-700 ml-8">
+                    {{ attendeesExpanded() ? 'Weniger anzeigen' : '+' + (attendees().length - MAX_VISIBLE_ATTENDEES) + ' weitere' }}
+                  </button>
+                }
               </div>
             }
           </div>
@@ -179,11 +198,16 @@ export class TimeEntryFormComponent implements OnInit {
     return lines.length > 2 || this.cleanDescription().length > 120;
   });
 
-  protected readonly attendeeSummary = computed(() => {
-    const all = (this.entry()?.attendees ?? []).map(formatAttendee);
-    if (all.length <= MAX_VISIBLE_ATTENDEES) return all.join(', ');
-    const rest = all.length - MAX_VISIBLE_ATTENDEES;
-    return all.slice(0, MAX_VISIBLE_ATTENDEES).join(', ') + ` +${rest} weitere`;
+  protected readonly MAX_VISIBLE_ATTENDEES = MAX_VISIBLE_ATTENDEES;
+  protected readonly attendeesExpanded = signal(false);
+
+  protected readonly attendees = computed(() =>
+    (this.entry()?.attendees ?? []).map(parseAttendee)
+  );
+
+  protected readonly visibleAttendees = computed(() => {
+    const all = this.attendees();
+    return this.attendeesExpanded() ? all : all.slice(0, MAX_VISIBLE_ATTENDEES);
   });
 
   form!: FormGroup;
