@@ -6,6 +6,13 @@ import autoTable from 'jspdf-autotable';
 import { format, eachDayOfInterval, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 
+function formatHoursAsHHMM(hours: number): string {
+  const totalMinutes = Math.round(hours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+
 function parseHexColor(color: string): [number, number, number] | null {
   const match = /^#?([0-9a-fA-F]{6})$/.exec(color);
   if (!match) return null;
@@ -41,7 +48,7 @@ export class PdfExportAdapter implements ExportPort {
       format(entry.start, 'dd.MM.yyyy'),
       format(entry.start, 'HH:mm'),
       format(entry.end, 'HH:mm'),
-      ((entry.end.getTime() - entry.start.getTime()) / 3600000).toFixed(2),
+      formatHoursAsHHMM((entry.end.getTime() - entry.start.getTime()) / 3600000),
       entry.projectId ? (projectMap.get(entry.projectId)?.name ?? '') : '',
       entry.title,
     ]);
@@ -52,9 +59,9 @@ export class PdfExportAdapter implements ExportPort {
 
     autoTable(doc, {
       startY: 40,
-      head: [['Datum', 'Von', 'Bis', 'Dauer (h)', 'Projekt', 'Beschreibung']],
+      head: [['Datum', 'Von', 'Bis', 'Dauer', 'Projekt', 'Beschreibung']],
       body: rows,
-      foot: [['', '', '', totalHours.toFixed(2), '', 'Gesamt']],
+      foot: [['', '', '', formatHoursAsHHMM(totalHours), '', 'Gesamt']],
       styles: { fontSize: 9 },
       headStyles: { fillColor: [79, 70, 229] },
       footStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], fontStyle: 'bold' },
@@ -120,11 +127,11 @@ export class PdfExportAdapter implements ExportPort {
           const hours = sortedEntries
             .filter(e => e.projectId === projectId && isSameDay(new Date(e.start), day))
             .reduce((sum, e) => sum + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000, 0);
-          row.push(hours > 0 ? hours.toFixed(2) : '');
+          row.push(hours > 0 ? formatHoursAsHHMM(hours) : '');
           projectTotal += hours;
           dayTotals[i] += hours;
         });
-        row.push(projectTotal.toFixed(2));
+        row.push(formatHoursAsHHMM(projectTotal));
         grandTotal += projectTotal;
         summaryBody.push(row);
       }
@@ -140,10 +147,10 @@ export class PdfExportAdapter implements ExportPort {
       const noProjectTotal = noProjectHours.reduce((a, b) => a + b, 0);
       if (noProjectTotal > 0) {
         grandTotal += noProjectTotal;
-        summaryBody.push(['Ohne Projekt', ...noProjectHours.map(h => h > 0 ? h.toFixed(2) : ''), noProjectTotal.toFixed(2)]);
+        summaryBody.push(['Ohne Projekt', ...noProjectHours.map(h => h > 0 ? formatHoursAsHHMM(h) : ''), formatHoursAsHHMM(noProjectTotal)]);
       }
 
-      const summaryFoot = ['Gesamt', ...dayTotals.map(h => h > 0 ? h.toFixed(2) : ''), grandTotal.toFixed(2)];
+      const summaryFoot = ['Gesamt', ...dayTotals.map(h => h > 0 ? formatHoursAsHHMM(h) : ''), formatHoursAsHHMM(grandTotal)];
 
       autoTable(doc, {
         startY: 40,
