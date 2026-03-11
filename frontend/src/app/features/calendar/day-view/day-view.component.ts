@@ -14,6 +14,7 @@ import { ProjectPillsBarComponent } from '../../../shared/components/project-pil
 import { DraftEntry, PopoverState, START_HOUR, END_HOUR, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
 import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as calcEntryWidth } from '../../../shared/utils/overlap-layout';
 import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
+import { getEntryColor as calcEntryColor, getProject as calcProject } from '../../../shared/utils/entry-styling';
 
 const HOUR_HEIGHT = 72;
 
@@ -457,8 +458,8 @@ export class DayViewComponent {
   getDurationMinutes(entry: TimeEntry) { return (new Date(entry.end).getTime() - new Date(entry.start).getTime()) / 60000; }
   getTopPosition(start: Date) { const d = new Date(start); return (d.getHours() + d.getMinutes() / 60 - START_HOUR) * HOUR_HEIGHT; }
   getBlockHeight(start: Date, end: Date) { return Math.max((new Date(end).getTime() - new Date(start).getTime()) / 3600000 * HOUR_HEIGHT, 34); }
-  getEntryColor(entry: TimeEntry) { return entry.projectId ? (this.projectStore.projectMap().get(entry.projectId)?.color ?? '#6366F1') : '#6366F1'; }
-  getProject(entry: TimeEntry): Project | null { return entry.projectId ? (this.projectStore.projectMap().get(entry.projectId) ?? null) : null; }
+  getEntryColor(entry: TimeEntry) { return calcEntryColor(entry, this.projectStore.projectMap()); }
+  getProject(entry: TimeEntry): Project | null { return calcProject(entry, this.projectStore.projectMap()); }
   formatTime = formatTime;
 
   clearView() {
