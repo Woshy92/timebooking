@@ -1,4 +1,4 @@
-import { Component, inject, effect } from '@angular/core';
+import { Component, inject, effect, untracked } from '@angular/core';
 import { UiStore } from '../../../state/ui.store';
 import { CalendarStore } from '../../../state/calendar.store';
 import { TimeEntryStore } from '../../../state/time-entry.store';
@@ -28,20 +28,22 @@ export class CalendarShellComponent {
   private readonly timeEntryStore = inject(TimeEntryStore);
   private readonly projectStore = inject(ProjectStore);
 
+  private lastLoadedRange = '';
+
   constructor() {
     effect(() => {
       const start = this.ui.weekStart();
       const end = this.ui.weekEnd();
-      this.timeEntryStore.loadEntries(start, end);
-      if (this.calendarStore.authenticated()) {
-        this.calendarStore.fetchEvents(start, end);
-      }
+      const rangeKey = `${start.getTime()}-${end.getTime()}`;
+      if (rangeKey === this.lastLoadedRange) return;
+      this.lastLoadedRange = rangeKey;
+      untracked(() => this.timeEntryStore.loadEntries(start, end));
     });
 
     effect(() => {
       if (!this.ui.defaultProjectId()) {
         const first = this.projectStore.activeProjects()[0];
-        if (first) this.ui.setDefaultProject(first.id);
+        if (first) untracked(() => this.ui.setDefaultProject(first.id));
       }
     });
   }
