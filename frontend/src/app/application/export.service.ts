@@ -11,8 +11,12 @@ export class ExportService {
   private readonly projectStore = inject(ProjectStore);
 
   export(format: 'pdf' | 'csv', dateRange: { from: Date; to: Date }, includeSummary = false): void {
+    const entries = this.timeEntryStore.entries().filter(e => {
+      const start = new Date(e.start);
+      return start >= dateRange.from && start <= dateRange.to;
+    });
     const options: ExportOptions = {
-      entries: this.timeEntryStore.entries(),
+      entries,
       projects: this.projectStore.projects(),
       dateRange,
       includeSummary,
