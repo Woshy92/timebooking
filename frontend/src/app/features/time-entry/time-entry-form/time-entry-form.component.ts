@@ -42,23 +42,6 @@ const MAX_VISIBLE_ATTENDEES = 3;
           </svg>
           <div class="min-w-0 flex-1">
             <div class="text-xs font-medium text-blue-700">Importiert aus Google Calendar</div>
-            @if (attendees().length) {
-              <div class="mt-2 text-xs text-blue-600/70">{{ attendees().length }} Teilnehmer</div>
-              <div class="mt-1.5 space-y-1.5">
-                @for (a of visibleAttendees(); track a.email) {
-                  <div class="flex items-center gap-2">
-                    <div class="w-6 h-6 rounded-full bg-blue-200 text-blue-700 flex items-center justify-center text-[10px] font-semibold flex-shrink-0">{{ a.initials }}</div>
-                    <span class="text-xs text-blue-700 truncate">{{ a.email }}</span>
-                  </div>
-                }
-                @if (attendees().length > MAX_VISIBLE_ATTENDEES) {
-                  <button type="button" (click)="attendeesExpanded.set(!attendeesExpanded())"
-                          class="text-xs text-indigo-600 hover:text-indigo-700 ml-8">
-                    {{ attendeesExpanded() ? 'Weniger anzeigen' : '+' + (attendees().length - MAX_VISIBLE_ATTENDEES) + ' weitere' }}
-                  </button>
-                }
-              </div>
-            }
           </div>
         </div>
       }
@@ -125,6 +108,26 @@ const MAX_VISIBLE_ATTENDEES = 3;
           placeholder="Optionale Notizen..."
         ></textarea>
       </div>
+
+      @if (attendees().length) {
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Teilnehmer ({{ attendees().length }})</label>
+          <div class="space-y-1.5">
+            @for (a of visibleAttendees(); track a.email) {
+              <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-semibold flex-shrink-0">{{ a.initials }}</div>
+                <span class="text-sm text-gray-600 truncate">{{ a.email }}</span>
+              </div>
+            }
+            @if (attendees().length > MAX_VISIBLE_ATTENDEES) {
+              <button type="button" (click)="attendeesExpanded.set(!attendeesExpanded())"
+                      class="text-xs text-indigo-600 hover:text-indigo-700 ml-8">
+                {{ attendeesExpanded() ? 'Weniger anzeigen' : '+' + (attendees().length - MAX_VISIBLE_ATTENDEES) + ' weitere' }}
+              </button>
+            }
+          </div>
+        </div>
+      }
 
       @if (cleanDescription()) {
         <div>
