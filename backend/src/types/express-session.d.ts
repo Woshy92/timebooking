@@ -4,5 +4,7 @@ import { Credentials } from 'google-auth-library';
 declare module 'express-session' {
   interface SessionData {
     tokens?: Credentials;
+    oauthState?: string;
+    csrfToken?: string;
   }
 }

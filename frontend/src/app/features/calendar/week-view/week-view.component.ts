@@ -515,11 +515,8 @@ export class WeekViewComponent {
   );
 
   clearView() {
-    for (const day of this.days()) {
-      for (const entry of day.entries) {
-        this.timeEntryStore.removeEntry(entry.id);
-      }
-    }
+    const ids = this.days().flatMap(day => day.entries.map(e => e.id));
+    if (ids.length > 0) this.timeEntryStore.removeEntries(ids);
   }
 
 }

@@ -6,6 +6,17 @@ import autoTable from 'jspdf-autotable';
 import { format, eachDayOfInterval, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 
+function parseHexColor(color: string): [number, number, number] | null {
+  const match = /^#?([0-9a-fA-F]{6})$/.exec(color);
+  if (!match) return null;
+  const hex = match[1];
+  return [
+    parseInt(hex.substring(0, 2), 16),
+    parseInt(hex.substring(2, 4), 16),
+    parseInt(hex.substring(4, 6), 16),
+  ];
+}
+
 @Injectable()
 export class PdfExportAdapter implements ExportPort {
   readonly format = 'pdf';
@@ -53,11 +64,9 @@ export class PdfExportAdapter implements ExportPort {
           const entry = sortedEntries[data.row.index];
           if (entry?.projectId) {
             const project = projectMap.get(entry.projectId);
-            if (project?.color) {
-              const hex = project.color.replace('#', '');
-              const r = parseInt(hex.substring(0, 2), 16);
-              const g = parseInt(hex.substring(2, 4), 16);
-              const b = parseInt(hex.substring(4, 6), 16);
+            const rgb = project?.color ? parseHexColor(project.color) : null;
+            if (rgb) {
+              const [r, g, b] = rgb;
               data.cell.styles.fillColor = [
                 Math.round(r + (255 - r) * 0.88),
                 Math.round(g + (255 - g) * 0.88),
@@ -72,11 +81,9 @@ export class PdfExportAdapter implements ExportPort {
           const entry = sortedEntries[data.row.index];
           if (entry?.projectId) {
             const project = projectMap.get(entry.projectId);
-            if (project?.color) {
-              const hex = project.color.replace('#', '');
-              const r = parseInt(hex.substring(0, 2), 16);
-              const g = parseInt(hex.substring(2, 4), 16);
-              const b = parseInt(hex.substring(4, 6), 16);
+            const rgb = project?.color ? parseHexColor(project.color) : null;
+            if (rgb) {
+              const [r, g, b] = rgb;
               doc.setFillColor(r, g, b);
               doc.circle(data.cell.x + 3.5, data.cell.y + data.cell.height / 2, 1.5, 'F');
             }
@@ -151,11 +158,9 @@ export class PdfExportAdapter implements ExportPort {
           if (data.section === 'body') {
             const pId = usedProjectIds[data.row.index] ?? null;
             const project = pId ? projectMap.get(pId) : null;
-            if (project?.color) {
-              const hex = project.color.replace('#', '');
-              const r = parseInt(hex.substring(0, 2), 16);
-              const g = parseInt(hex.substring(2, 4), 16);
-              const b = parseInt(hex.substring(4, 6), 16);
+            const rgb = project?.color ? parseHexColor(project.color) : null;
+            if (rgb) {
+              const [r, g, b] = rgb;
               data.cell.styles.fillColor = [
                 Math.round(r + (255 - r) * 0.88),
                 Math.round(g + (255 - g) * 0.88),
@@ -168,11 +173,9 @@ export class PdfExportAdapter implements ExportPort {
           if (data.section === 'body' && data.column.index === 0) {
             const pId = usedProjectIds[data.row.index] ?? null;
             const project = pId ? projectMap.get(pId) : null;
-            if (project?.color) {
-              const hex = project.color.replace('#', '');
-              const r = parseInt(hex.substring(0, 2), 16);
-              const g = parseInt(hex.substring(2, 4), 16);
-              const b = parseInt(hex.substring(4, 6), 16);
+            const rgb = project?.color ? parseHexColor(project.color) : null;
+            if (rgb) {
+              const [r, g, b] = rgb;
               doc.setFillColor(r, g, b);
               doc.circle(data.cell.x + 3.5, data.cell.y + data.cell.height / 2, 1.5, 'F');
             }

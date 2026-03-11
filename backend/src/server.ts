@@ -1,6 +1,14 @@
 import 'dotenv/config';
 import { createApp } from './app.js';
 
+const required = ['SESSION_SECRET', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];
+for (const key of required) {
+  if (!process.env[key]) {
+    console.error(`FATAL: Missing required environment variable: ${key}`);
+    process.exit(1);
+  }
+}
+
 const app = createApp();
 const port = parseInt(process.env.PORT || '3000', 10);
 

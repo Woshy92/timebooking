@@ -4,12 +4,25 @@ import { listEvents } from '../services/google-calendar.service.js';
 
 const router = Router();
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/;
+const CALENDAR_ID_RE = /^(primary|[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})$/;
+
 router.get('/events', requireAuth, async (req, res) => {
   try {
     const { timeMin, timeMax, calendarId = 'primary' } = req.query as Record<string, string>;
 
     if (!timeMin || !timeMax) {
       res.status(400).json({ error: 'timeMin and timeMax are required' });
+      return;
+    }
+
+    if (!ISO_DATE_RE.test(timeMin) || !ISO_DATE_RE.test(timeMax)) {
+      res.status(400).json({ error: 'Invalid date format, expected ISO 8601' });
+      return;
+    }
+
+    if (!CALENDAR_ID_RE.test(calendarId)) {
+      res.status(400).json({ error: 'Invalid calendarId' });
       return;
     }
 

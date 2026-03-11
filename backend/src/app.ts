@@ -1,4 +1,6 @@
+import crypto from 'crypto';
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import session from 'express-session';
 import FileStoreFactory from 'session-file-store';
@@ -9,28 +11,57 @@ export function createApp() {
   const app = express();
   const FileStore = FileStoreFactory(session);
 
+  app.disable('x-powered-by');
+
   app.use(cors({
     origin: process.env.FRONTEND_ORIGIN || 'http://localhost:4200',
     credentials: true,
   }));
 
+  app.use(cookieParser());
   app.use(express.json());
 
   app.use(session({
     store: new FileStore({
       path: './sessions',
       ttl: 7 * 24 * 60 * 60, // 7 days in seconds
+      fileMode: 0o600,
     }),
-    secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
+    secret: process.env.SESSION_SECRET!,
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     },
   }));
+
+  // CSRF double-submit cookie: set a non-httpOnly token cookie that Angular reads
+  app.use((req, res, next) => {
+    if (!req.cookies?.['XSRF-TOKEN'] && req.session) {
+      const token = crypto.randomBytes(32).toString('hex');
+      req.session.csrfToken = token;
+      res.cookie('XSRF-TOKEN', token, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+      });
+    }
+    next();
+  });
+
+  // Validate CSRF token on mutating requests
+  app.use((req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    const headerToken = req.headers['x-xsrf-token'] as string;
+    if (!headerToken || headerToken !== req.session?.csrfToken) {
+      res.status(403).json({ error: 'Invalid CSRF token' });
+      return;
+    }
+    next();
+  });
 
   app.use('/auth', authRoutes);
   app.use('/api/calendar', calendarRoutes);

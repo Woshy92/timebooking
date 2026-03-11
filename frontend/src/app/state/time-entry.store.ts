@@ -72,6 +72,21 @@ export const TimeEntryStore = signalStore(
           error: (err) => patchState(store, { error: String(err) }),
         });
       },
+      removeEntries(ids: string[]) {
+        storage.deleteEntries(ids).subscribe({
+          next: (dismissedGoogleIds) => {
+            const idSet = new Set(ids);
+            const updates: Partial<TimeEntryState> = {
+              entries: store.entries().filter(e => !idSet.has(e.id)),
+            };
+            if (dismissedGoogleIds.length > 0) {
+              updates.dismissedGoogleEventIds = [...new Set([...store.dismissedGoogleEventIds(), ...dismissedGoogleIds])];
+            }
+            patchState(store, updates);
+          },
+          error: (err) => patchState(store, { error: String(err) }),
+        });
+      },
       loadDismissedGoogleEventIds() {
         storage.getDismissedGoogleEventIds().subscribe({
           next: (ids) => patchState(store, { dismissedGoogleEventIds: ids }),

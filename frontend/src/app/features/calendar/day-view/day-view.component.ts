@@ -417,9 +417,8 @@ export class DayViewComponent {
   formatTime = formatTime;
 
   clearView() {
-    for (const entry of this.entries()) {
-      this.timeEntryStore.removeEntry(entry.id);
-    }
+    const ids = this.entries().map(e => e.id);
+    if (ids.length > 0) this.timeEntryStore.removeEntries(ids);
   }
 
   getEntryLeft(entryId: string): string {

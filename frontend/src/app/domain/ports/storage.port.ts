@@ -8,6 +8,7 @@ export interface StoragePort {
   saveEntry(entry: CreateTimeEntryDTO): Observable<TimeEntry>;
   updateEntry(id: string, changes: UpdateTimeEntryDTO): Observable<TimeEntry>;
   deleteEntry(id: string): Observable<void>;
+  deleteEntries(ids: string[]): Observable<string[]>;
 
   getDismissedGoogleEventIds(): Observable<string[]>;
   dismissGoogleEvent(eventId: string): Observable<void>;

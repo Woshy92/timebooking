@@ -51,6 +51,20 @@ export class LocalStorageAdapter implements StoragePort {
     return of(void 0);
   }
 
+  deleteEntries(ids: string[]): Observable<string[]> {
+    const idSet = new Set(ids);
+    const all = this.readAll<TimeEntry>(ENTRIES_KEY);
+    const toDelete = all.filter(e => idSet.has(e.id));
+    const googleIds = toDelete.filter(e => e.googleEventId).map(e => e.googleEventId!);
+    if (googleIds.length > 0) {
+      const dismissed = this.readAll<string>(DISMISSED_GOOGLE_KEY);
+      const newDismissed = [...new Set([...dismissed, ...googleIds])];
+      this.persist(DISMISSED_GOOGLE_KEY, newDismissed);
+    }
+    this.persist(ENTRIES_KEY, all.filter(e => !idSet.has(e.id)));
+    return of(googleIds);
+  }
+
   getDismissedGoogleEventIds(): Observable<string[]> {
     return of(this.readAll<string>(DISMISSED_GOOGLE_KEY));
   }
