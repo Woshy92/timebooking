@@ -92,7 +92,7 @@ const HOUR_HEIGHT = 64;
               <div class="text-[10px] font-medium mt-0.5"
                    [class.text-indigo-500]="day.isToday"
                    [class.text-gray-400]="!day.isToday">{{ formatHM(day.totalHours) }}</div>
-              @if ((dayProjectSummary().get(day.date.toISOString()) ?? []).length > 1) {
+              @if ((dayProjectSummary().get(day.date.toISOString()) ?? []).length) {
                 <div class="flex mx-auto mt-1 h-1 rounded-full overflow-hidden" style="width: 60%">
                   @for (ps of dayProjectSummary().get(day.date.toISOString()) ?? []; track ps.pid) {
                     <div class="h-full" [style.background-color]="ps.color"
