@@ -6,6 +6,7 @@ import { CalendarStore } from '../../../state/calendar.store';
 import { UiStore } from '../../../state/ui.store';
 import { CalendarSyncService } from '../../../application/calendar-sync.service';
 import { UndoStore } from '../../../state/undo.store';
+import { VacationStore } from '../../../state/vacation.store';
 import { format, eachDayOfInterval, isSameDay, startOfDay, isWeekend } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { TimeEntry } from '../../../domain/models/time-entry.model';
@@ -51,19 +52,72 @@ const HOUR_HEIGHT = 64;
 
       <!-- Weekly project summary -->
       @if (weekTotalHours() > 0) {
-        <div class="flex items-center gap-3 px-4 py-1 border-b border-gray-100 bg-gray-50/20 overflow-x-auto">
-          <span class="text-[10px] font-bold text-gray-400 tabular-nums whitespace-nowrap">
-            {{ weekTotalHours().toFixed(1) }}h
-          </span>
-          <div class="flex items-center gap-2 min-w-0">
-            @for (ps of weekProjectSummary(); track ps.name) {
-              <div class="flex items-center gap-1 whitespace-nowrap">
-                <div class="w-1.5 h-1.5 rounded-full flex-shrink-0" [style.background-color]="ps.color"></div>
-                <span class="text-[10px] text-gray-500">{{ ps.name }}</span>
-                <span class="text-[10px] font-semibold tabular-nums" [style.color]="ps.color">{{ ps.hours.toFixed(1) }}h</span>
-              </div>
-            }
-          </div>
+        <div class="border-b border-gray-100 bg-gray-50/20">
+          <button (click)="summaryExpanded.set(!summaryExpanded())"
+            class="flex items-center gap-3 px-4 py-1 w-full hover:bg-gray-50/60 transition-colors overflow-x-auto">
+            <svg class="w-3 h-3 text-gray-400 flex-shrink-0 transition-transform"
+                 [class.rotate-90]="summaryExpanded()"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+            <span class="text-[10px] font-bold text-gray-400 tabular-nums whitespace-nowrap">
+              {{ formatHM(weekTotalHours()) }}
+            </span>
+            <div class="flex items-center gap-2 min-w-0">
+              @for (ps of weekProjectSummary(); track ps.pid) {
+                <div class="flex items-center gap-1 whitespace-nowrap">
+                  <div class="w-1.5 h-1.5 rounded-full flex-shrink-0" [style.background-color]="ps.color"></div>
+                  <span class="text-[10px] text-gray-500">{{ ps.name }}</span>
+                  <span class="text-[10px] font-semibold tabular-nums" [style.color]="ps.color">{{ formatHM(ps.hours) }}</span>
+                </div>
+              }
+            </div>
+          </button>
+          @if (summaryExpanded()) {
+            <div class="px-4 pb-2 overflow-x-auto">
+              <table class="w-full text-[11px]">
+                <thead>
+                  <tr class="text-gray-400">
+                    <th class="text-left py-1 pr-3 font-medium">Projekt</th>
+                    @for (day of days(); track day.date.toISOString()) {
+                      <th class="text-center py-1 px-2 font-medium min-w-[52px]"
+                          [class.text-indigo-500]="day.isToday">{{ day.dayName }}</th>
+                    }
+                    <th class="text-right py-1 pl-3 font-semibold text-gray-500">Gesamt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of summaryTable(); track row.pid) {
+                    <tr class="border-t border-gray-100/60">
+                      <td class="py-1 pr-3">
+                        <div class="flex items-center gap-1.5">
+                          <div class="w-2 h-2 rounded-full flex-shrink-0" [style.background-color]="row.color"></div>
+                          <span class="text-gray-600 truncate max-w-[120px]">{{ row.name }}</span>
+                        </div>
+                      </td>
+                      @for (h of row.perDay; track $index) {
+                        <td class="text-center py-1 px-2 tabular-nums"
+                            [class.text-gray-300]="h === 0"
+                            [class.text-gray-700]="h > 0">{{ h > 0 ? formatHM(h) : '-' }}</td>
+                      }
+                      <td class="text-right py-1 pl-3 font-semibold tabular-nums text-gray-700">{{ formatHM(row.total) }}</td>
+                    </tr>
+                  }
+                </tbody>
+                <tfoot>
+                  <tr class="border-t border-gray-200">
+                    <td class="py-1 pr-3 font-semibold text-gray-500">Gesamt</td>
+                    @for (h of summaryDayTotals(); track $index) {
+                      <td class="text-center py-1 px-2 font-semibold tabular-nums"
+                          [class.text-gray-300]="h === 0"
+                          [class.text-gray-700]="h > 0">{{ h > 0 ? formatHM(h) : '-' }}</td>
+                    }
+                    <td class="text-right py-1 pl-3 font-bold tabular-nums text-gray-800">{{ formatHM(weekTotalHours()) }}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          }
         </div>
       }
 
@@ -71,20 +125,40 @@ const HOUR_HEIGHT = 64;
       <div class="flex border-b border-gray-200/80 bg-white sticky top-0 z-20 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
         <div class="w-[52px] flex-shrink-0 border-r border-gray-100"></div>
         @for (day of days(); track day.date.toISOString()) {
-          <div class="flex-1 text-center py-2.5 border-l border-gray-100/60"
-               [class.bg-indigo-50/40]="day.isToday">
+          <div class="flex-1 text-center py-2.5 border-l border-gray-100/60 relative group/dh"
+               [class.bg-indigo-50/40]="day.isToday && !day.isVacation"
+               [class.bg-amber-50/60]="day.isVacation">
             <div class="text-[11px] font-semibold tracking-wider uppercase"
-                 [class.text-indigo-500]="day.isToday"
-                 [class.text-gray-400]="!day.isToday">{{ day.dayName }}</div>
+                 [class.text-indigo-500]="day.isToday && !day.isVacation"
+                 [class.text-amber-500]="day.isVacation"
+                 [class.text-gray-400]="!day.isToday && !day.isVacation">{{ day.dayName }}</div>
             <div class="mt-0.5 inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold"
-                 [class.bg-indigo-600]="day.isToday"
-                 [class.text-white]="day.isToday"
-                 [class.text-gray-800]="!day.isToday">{{ day.dayNumber }}</div>
-            @if (day.totalHours > 0) {
+                 [class.bg-indigo-600]="day.isToday && !day.isVacation"
+                 [class.text-white]="day.isToday && !day.isVacation"
+                 [class.bg-amber-200]="day.isVacation"
+                 [class.text-amber-700]="day.isVacation"
+                 [class.text-gray-800]="!day.isToday && !day.isVacation">{{ day.dayNumber }}</div>
+            @if (day.isVacation) {
+              <div class="text-[10px] font-medium mt-0.5 text-amber-500">Urlaub</div>
+            } @else if (day.totalHours > 0) {
               <div class="text-[10px] font-medium mt-0.5"
                    [class.text-indigo-500]="day.isToday"
-                   [class.text-gray-400]="!day.isToday">{{ day.totalHours.toFixed(1) }}h</div>
+                   [class.text-gray-400]="!day.isToday">{{ formatHM(day.totalHours) }}</div>
             }
+            <button
+              class="absolute top-1 right-1 w-5 h-5 rounded-full text-[9px] font-bold leading-none
+                     transition-all flex items-center justify-center"
+              [class.opacity-100]="day.isVacation"
+              [class.opacity-30]="!day.isVacation"
+              [class.hover:opacity-80]="!day.isVacation"
+              [class.bg-amber-100]="day.isVacation"
+              [class.text-amber-600]="day.isVacation"
+              [class.hover:bg-amber-200]="day.isVacation"
+              [class.bg-gray-100]="!day.isVacation"
+              [class.text-gray-400]="!day.isVacation"
+              [class.hover:bg-gray-200]="!day.isVacation"
+              (click)="toggleVacation(day)"
+              [title]="day.isVacation ? 'Urlaub entfernen' : 'Als Urlaub markieren'">U</button>
           </div>
         }
       </div>
@@ -109,12 +183,20 @@ const HOUR_HEIGHT = 64;
         @for (day of days(); track day.date.toISOString(); let dayIdx = $index) {
           <div
             class="flex-1 border-l border-gray-100/60 relative select-none"
-            [class.bg-indigo-50/20]="day.isToday"
+            [class.bg-indigo-50/20]="day.isToday && !day.isVacation"
+            [class.bg-gray-200/70]="day.isVacation"
             (mousedown)="onGridMouseDown($event, day.date, dayIdx)"
           >
             @for (hour of hours; track hour) {
               <div class="border-b border-gray-100/50" [style.height.px]="hourHeight()">
                 <div class="border-b border-dashed border-gray-100/30 h-1/2"></div>
+              </div>
+            }
+
+            <!-- Vacation overlay -->
+            @if (day.isVacation) {
+              <div class="absolute inset-0 bg-gray-300/30 z-[2] pointer-events-none flex items-center justify-center">
+                <span class="text-gray-400/70 text-sm font-bold -rotate-12 select-none">Urlaub</span>
               </div>
             }
 
@@ -131,12 +213,14 @@ const HOUR_HEIGHT = 64;
             <!-- Google Calendar events -->
             @for (event of day.googleEvents; track event.id) {
               <div
-                class="absolute left-1.5 right-1.5 rounded-md px-2 py-1 text-[11px] cursor-pointer z-[5]
+                class="absolute rounded-md px-2 py-1 text-[11px] cursor-pointer z-[5]
                        bg-white border border-dashed border-gray-300 hover:border-indigo-400
                        hover:shadow-md transition-all group"
                 [style.top.px]="getTopPosition(event.start)"
                 [style.height.px]="getBlockHeight(event.start, event.end)"
                 [style.min-height.px]="26"
+                [style.left]="getEntryLeft(event.id)"
+                [style.width]="getEntryWidth(event.id)"
                 (mousedown)="$event.stopPropagation()"
                 (click)="onGoogleEventClick($event, event)"
               >
@@ -166,8 +250,8 @@ const HOUR_HEIGHT = 64;
               <div
                 class="absolute rounded-md cursor-pointer z-[6]
                        shadow-sm hover:shadow-lg transition-all group"
-                [style.top.px]="getTopPosition(entry.start)"
-                [style.height.px]="getBlockHeight(entry.start, getEffectiveEnd(entry))"
+                [style.top.px]="getTopPosition(getEffectiveStart(entry))"
+                [style.height.px]="getBlockHeight(getEffectiveStart(entry), getEffectiveEnd(entry))"
                 [style.min-height.px]="26"
                 [style.left]="getEntryLeft(entry.id)"
                 [style.width]="getEntryWidth(entry.id)"
@@ -177,19 +261,38 @@ const HOUR_HEIGHT = 64;
                 [class.ring-indigo-400]="selectedEntryIds().has(entry.id)"
                 (mousedown)="$event.stopPropagation()"
                 (click)="onEntryClick($event, entry)"
+                (dblclick)="onEntryDblClick($event, entry)"
               >
                 <div class="px-2 py-1 h-full flex flex-col overflow-hidden">
-                  <div class="text-[11px] font-semibold truncate flex-shrink-0" [style.color]="getEntryTextColor(entry)">
-                    {{ entry.title || 'Ohne Beschreibung' }}
+                  <div class="flex items-center gap-1 flex-shrink-0">
+                    <div class="text-[11px] font-semibold truncate" [style.color]="getEntryTextColor(entry)">
+                      {{ entry.title || 'Ohne Beschreibung' }}
+                    </div>
+                    @if (entry.source === 'google') {
+                      <svg class="w-2.5 h-2.5 flex-shrink-0 opacity-50" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                      </svg>
+                    }
                   </div>
                   <div class="text-[10px] tabular-nums flex-shrink overflow-hidden leading-tight" [style.color]="getEntryColor(entry)" style="opacity: 0.7">
-                    {{ formatTime(entry.start) }}–{{ formatTime(getEffectiveEnd(entry)) }}
+                    {{ formatTime(getEffectiveStart(entry)) }}–{{ formatTime(getEffectiveEnd(entry)) }}
                   </div>
                   @if (getProject(entry); as p) {
                     <div class="text-[9px] font-semibold mt-auto truncate uppercase tracking-wide flex-shrink overflow-hidden" [style.color]="getEntryColor(entry)" style="opacity: 0.6">{{ p.name }}</div>
                   }
                 </div>
-                <!-- Resize handle -->
+                <!-- Top resize handle -->
+                <div
+                  class="absolute top-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                  [style.background]="'linear-gradient(' + getEntryColor(entry) + '30, transparent)'"
+                  (mousedown)="onResizeTopStart($event, entry)"
+                >
+                  <div class="absolute top-0.5 left-1/2 -translate-x-1/2 w-6 h-[3px] rounded-full" [style.background-color]="getEntryColor(entry)" style="opacity: 0.5"></div>
+                </div>
+                <!-- Bottom resize handle -->
                 <div
                   class="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
                   [style.background]="'linear-gradient(transparent, ' + getEntryColor(entry) + '30)'"
@@ -225,6 +328,9 @@ const HOUR_HEIGHT = 64;
                     {{ formatDraftTime() }}
                   </div>
                 </div>
+                <div class="absolute top-0 left-0 right-0 h-3 cursor-ns-resize" (mousedown)="onDraftResizeTopStart($event)">
+                  <div class="absolute top-1 left-1/2 -translate-x-1/2 w-6 h-[3px] rounded-full" [style.background-color]="draftColor()" style="opacity: 0.3"></div>
+                </div>
                 <div class="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize" (mousedown)="onDraftResizeStart($event)">
                   <div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-6 h-[3px] rounded-full" [style.background-color]="draftColor()" style="opacity: 0.3"></div>
                 </div>
@@ -243,6 +349,7 @@ const HOUR_HEIGHT = 64;
         [selectedCount]="selectedEntryIds().size"
         [commonProjectId]="commonProjectId()"
         (assign)="assignProject($event)"
+        (openDetails)="openEntryDetails()"
         (delete)="deleteEntries()"
         (close)="closePopover()"
       />
@@ -257,6 +364,7 @@ export class WeekViewComponent {
   protected readonly uiStore = inject(UiStore);
   private readonly calendarSyncService = inject(CalendarSyncService);
   private readonly undoStore = inject(UndoStore);
+  protected readonly vacationStore = inject(VacationStore);
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -291,6 +399,7 @@ export class WeekViewComponent {
   private resizeStartY = 0;
   private resizeStartEndHour = 0;
   resizeOverride = signal<{ entryId: string; end: Date } | null>(null);
+  resizeTopOverride = signal<{ entryId: string; start: Date } | null>(null);
 
   constructor() {
     afterNextRender(() => {
@@ -327,6 +436,8 @@ export class WeekViewComponent {
     const dismissedGoogleIds = new Set(this.timeEntryStore.dismissedGoogleEventIds());
     const today = startOfDay(new Date());
 
+    const vacationSet = this.vacationStore.daySet();
+
     return allDays.map(date => {
       const dayEntries = entries.filter(e => isSameDay(new Date(e.start), date));
       const dayGoogleEvents = googleEvents
@@ -336,9 +447,10 @@ export class WeekViewComponent {
       const totalHours = dayEntries.reduce(
         (sum, e) => sum + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000, 0
       );
+      const isVacation = vacationSet.has(format(date, 'yyyy-MM-dd'));
       return {
         date, dayName: format(date, 'EEE', { locale: de }), dayNumber: format(date, 'd'),
-        isToday: isSameDay(date, today), entries: dayEntries, googleEvents: dayGoogleEvents, totalHours,
+        isToday: isSameDay(date, today), entries: dayEntries, googleEvents: dayGoogleEvents, totalHours, isVacation,
       };
     });
   });
@@ -347,7 +459,7 @@ export class WeekViewComponent {
   readonly entryLayout = computed(() => {
     const result = new Map<string, { col: number; total: number }>();
     for (const day of this.days()) {
-      computeOverlapLayout(day.entries, result);
+      computeOverlapLayout([...day.entries, ...day.googleEvents], result);
     }
     return result;
   });
@@ -387,9 +499,22 @@ export class WeekViewComponent {
     this.closePopover();
   }
 
+  openEntryDetails() {
+    const id = [...this.selectedEntryIds()][0];
+    if (id) this.uiStore.selectEntry(id);
+    this.closePopover();
+  }
+
   closePopover() {
     this.popover.set(null);
     this.selectedEntryIds.set(new Set());
+  }
+
+  // ─── Dismiss empty draft on outside click ──────────────
+  protected dismissEmptyDraft() {
+    if (this.draft() && !this.draft()!.title?.trim()) {
+      this.draft.set(null);
+    }
   }
 
   // ─── Grid interaction ──────────────────────────────────
@@ -407,6 +532,9 @@ export class WeekViewComponent {
 
     // Close popover on background click
     if (this.popover()) { this.closePopover(); return; }
+
+    // Save existing draft if it has a title
+    if (this.draft()?.title?.trim()) { this.saveDraft(); }
 
     const y = this.getYInColumn(event);
     const hour = snapToHalfHour(START_HOUR + y / this.hourHeight());
@@ -438,9 +566,12 @@ export class WeekViewComponent {
     document.addEventListener('mouseup', onUp);
   }
 
-  // ─── Entry click → popover ─────────────────────────────
+  // ─── Entry click → popover (delayed for dblclick) ──────
+  private clickTimer: ReturnType<typeof setTimeout> | null = null;
+
   onEntryClick(event: MouseEvent, entry: TimeEntry) {
     event.stopPropagation();
+    this.dismissEmptyDraft();
     const x = Math.min(event.clientX, window.innerWidth - 220);
     const y = Math.min(event.clientY, window.innerHeight - 300);
 
@@ -457,19 +588,34 @@ export class WeekViewComponent {
       } else {
         this.popover.set(null);
       }
-    } else {
+      return;
+    }
+
+    if (this.clickTimer) clearTimeout(this.clickTimer);
+    this.clickTimer = setTimeout(() => {
+      this.clickTimer = null;
       this.selectedEntryIds.set(new Set([entry.id]));
       this.popover.set({ x, y });
-    }
+    }, 250);
+  }
+
+  onEntryDblClick(event: MouseEvent, entry: TimeEntry) {
+    event.stopPropagation();
+    if (this.clickTimer) { clearTimeout(this.clickTimer); this.clickTimer = null; }
+    this.dismissEmptyDraft();
+    this.closePopover();
+    this.uiStore.selectEntry(entry.id);
   }
 
   onGoogleEventClick(event: MouseEvent, calEvent: CalendarEvent) {
     event.stopPropagation();
+    this.dismissEmptyDraft();
     this.calendarSyncService.importEvent(calEvent);
   }
 
   dismissGoogleEvent(event: MouseEvent, eventId: string) {
     event.stopPropagation();
+    this.dismissEmptyDraft();
     this.timeEntryStore.dismissGoogleEvent(eventId);
   }
 
@@ -490,6 +636,20 @@ export class WeekViewComponent {
   }
 
   cancelDraft() { this.draft.set(null); }
+
+  onDraftResizeTopStart(event: MouseEvent) {
+    event.stopPropagation(); event.preventDefault();
+    this.resizingDraft = true;
+    this.resizeStartY = event.clientY;
+    const startStartHour = this.draft()!.startHour;
+    const onMove = (e: MouseEvent) => {
+      const d = this.draft()!;
+      const newStart = snapToGrid(startStartHour + (e.clientY - this.resizeStartY) / this.hourHeight(), SNAP_MINUTES);
+      this.draft.set({ ...d, startHour: Math.min(Math.max(newStart, START_HOUR), d.endHour - 0.25) });
+    };
+    const onUp = () => { this.resizingDraft = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+  }
 
   onDraftResizeStart(event: MouseEvent) {
     event.stopPropagation(); event.preventDefault();
@@ -536,9 +696,46 @@ export class WeekViewComponent {
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
   }
 
+  // ─── Entry resize top ─────────────────────────────────
+  private resizeStartStartHour = 0;
+
+  onResizeTopStart(event: MouseEvent, entry: TimeEntry) {
+    event.stopPropagation(); event.preventDefault();
+    this.resizeStartY = event.clientY;
+    const startDate = new Date(entry.start);
+    this.resizeStartStartHour = startDate.getHours() + startDate.getMinutes() / 60;
+    let lastClientY = event.clientY;
+    const container = this.scrollContainer()?.nativeElement;
+    const stopScroll = container ? startAutoScroll(container, () => lastClientY) : null;
+    const onMove = (e: MouseEvent) => {
+      lastClientY = e.clientY;
+      const endDate = new Date(entry.end);
+      const endHour = endDate.getHours() + endDate.getMinutes() / 60;
+      const newStartHour = snapToGrid(this.resizeStartStartHour + (e.clientY - this.resizeStartY) / this.hourHeight(), SNAP_MINUTES);
+      const clampedStart = Math.min(Math.max(newStartHour, START_HOUR), endHour - 0.25);
+      const newStart = new Date(entry.start); newStart.setHours(Math.floor(clampedStart), (clampedStart % 1) * 60, 0, 0);
+      this.resizeTopOverride.set({ entryId: entry.id, start: newStart });
+    };
+    const onUp = () => {
+      stopScroll?.();
+      const override = this.resizeTopOverride();
+      if (override) {
+        this.timeEntryStore.updateEntry(override.entryId, { start: override.start });
+        this.resizeTopOverride.set(null);
+      }
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+  }
+
   // ─── Positioning & Styling ─────────────────────────────
   getTopPosition(start: Date): number { const d = new Date(start); return (d.getHours() + d.getMinutes() / 60 - START_HOUR) * this.hourHeight(); }
   getBlockHeight(start: Date, end: Date): number { return Math.max((new Date(end).getTime() - new Date(start).getTime()) / 3600000 * this.hourHeight(), 26); }
+  getEffectiveStart(entry: TimeEntry): Date {
+    const override = this.resizeTopOverride();
+    return override && override.entryId === entry.id ? override.start : entry.start;
+  }
   getEffectiveEnd(entry: TimeEntry): Date {
     const override = this.resizeOverride();
     return override && override.entryId === entry.id ? override.end : entry.end;
@@ -550,6 +747,7 @@ export class WeekViewComponent {
   formatTime = formatTime;
 
   toggleFitToScreen() {
+    this.dismissEmptyDraft();
     this.fitToScreen.update(v => !v);
     if (!this.fitToScreen()) {
       setTimeout(() => {
@@ -571,13 +769,13 @@ export class WeekViewComponent {
       map.set(pid, (map.get(pid) ?? 0) + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000);
     }
     const projectMap = this.projectStore.projectMap();
-    const result: { name: string; color: string; hours: number }[] = [];
+    const result: { pid: string; name: string; color: string; hours: number }[] = [];
     for (const [pid, hours] of map) {
       if (pid === '__none__') {
-        result.push({ name: 'Ohne Projekt', color: '#9CA3AF', hours });
+        result.push({ pid, name: 'Ohne Projekt', color: '#9CA3AF', hours });
       } else {
         const p = projectMap.get(pid);
-        if (p) result.push({ name: p.name, color: p.color, hours });
+        if (p) result.push({ pid, name: p.name, color: p.color, hours });
       }
     }
     result.sort((a, b) => b.hours - a.hours);
@@ -588,12 +786,70 @@ export class WeekViewComponent {
     this.weekProjectSummary().reduce((sum, p) => sum + p.hours, 0)
   );
 
+  readonly summaryExpanded = signal(false);
+
+  readonly summaryTable = computed(() => {
+    const daysList = this.days();
+    const projectMap = this.projectStore.projectMap();
+    const pidSet = new Map<string, { name: string; color: string; perDay: number[] }>();
+
+    for (let i = 0; i < daysList.length; i++) {
+      for (const e of daysList[i].entries) {
+        const pid = e.projectId ?? '__none__';
+        if (!pidSet.has(pid)) {
+          const p = pid === '__none__' ? null : projectMap.get(pid);
+          pidSet.set(pid, {
+            name: p?.name ?? 'Ohne Projekt',
+            color: p?.color ?? '#9CA3AF',
+            perDay: new Array(daysList.length).fill(0),
+          });
+        }
+        pidSet.get(pid)!.perDay[i] += (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000;
+      }
+    }
+
+    return [...pidSet.entries()]
+      .map(([pid, data]) => ({
+        pid,
+        ...data,
+        total: data.perDay.reduce((a, b) => a + b, 0),
+      }))
+      .sort((a, b) => b.total - a.total);
+  });
+
+  readonly summaryDayTotals = computed(() => {
+    const daysList = this.days();
+    const totals = new Array(daysList.length).fill(0);
+    for (const row of this.summaryTable()) {
+      row.perDay.forEach((h, i) => totals[i] += h);
+    }
+    return totals;
+  });
+
+  formatHM(hours: number): string {
+    const totalMinutes = Math.round(hours * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return `${h}:${String(m).padStart(2, '0')}`;
+  }
+
   clearView() {
+    this.dismissEmptyDraft();
     const entries = this.days().flatMap(day => day.entries);
     if (entries.length > 0) {
       this.undoStore.pushDelete(entries);
       this.timeEntryStore.removeEntries(entries.map(e => e.id));
     }
+    this.calendarStore.clearEvents();
+  }
+
+  toggleVacation(day: { date: Date; entries: TimeEntry[]; isVacation: boolean }) {
+    this.dismissEmptyDraft();
+    if (!day.isVacation && day.entries.length > 0) {
+      this.undoStore.pushDelete(day.entries);
+      this.timeEntryStore.removeEntries(day.entries.map(e => e.id));
+    }
+    this.vacationStore.toggleDay(day.date);
   }
 
 }
