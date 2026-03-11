@@ -15,7 +15,7 @@ import { CalendarEvent } from '../../../domain/models/calendar-event.model';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
 import { ClearConfirmPopoverComponent } from '../../../shared/components/clear-confirm-popover/clear-confirm-popover.component';
 import { ProjectPopoverComponent } from '../../../shared/components/project-popover/project-popover.component';
-import { DraftEntry, PopoverState, START_HOUR, END_HOUR, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
+import { DraftEntry, PopoverState, DragOverride, START_HOUR, END_HOUR, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
 import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as calcEntryWidth } from '../../../shared/utils/overlap-layout';
 import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
 import { getEntryColor as calcEntryColor, getEntryBg as calcEntryBg, getEntryTextColor as calcEntryTextColor, getProject as calcProject } from '../../../shared/utils/entry-styling';
@@ -214,7 +214,10 @@ const HOUR_HEIGHT = 64;
                 [style.border-left]="'3px solid ' + getEntryColor(entry)"
                 [class.ring-2]="selectedEntryIds().has(entry.id)"
                 [class.ring-indigo-400]="selectedEntryIds().has(entry.id)"
-                (mousedown)="$event.stopPropagation()"
+                [class.opacity-60]="dragOverride()?.entryId === entry.id"
+                [class.shadow-xl]="dragOverride()?.entryId === entry.id"
+                [class.!z-50]="dragOverride()?.entryId === entry.id"
+                (mousedown)="onEntryMouseDown($event, entry, dayIdx)"
                 (click)="onEntryClick($event, entry)"
                 (dblclick)="onEntryDblClick($event, entry)"
               >
@@ -355,6 +358,8 @@ export class WeekViewComponent {
   private resizeStartEndHour = 0;
   resizeOverride = signal<{ entryId: string; end: Date } | null>(null);
   resizeTopOverride = signal<{ entryId: string; start: Date } | null>(null);
+  dragOverride = signal<DragOverride | null>(null);
+  private dragging = false;
 
   constructor() {
     afterNextRender(() => {
@@ -525,6 +530,7 @@ export class WeekViewComponent {
   private clickTimer: ReturnType<typeof setTimeout> | null = null;
 
   onEntryClick(event: MouseEvent, entry: TimeEntry) {
+    if (this.dragging) return;
     event.stopPropagation();
     this.dismissEmptyDraft();
     const x = Math.min(event.clientX, window.innerWidth - 220);
@@ -555,6 +561,7 @@ export class WeekViewComponent {
   }
 
   onEntryDblClick(event: MouseEvent, entry: TimeEntry) {
+    if (this.dragging) return;
     event.stopPropagation();
     if (this.clickTimer) { clearTimeout(this.clickTimer); this.clickTimer = null; }
     this.dismissEmptyDraft();
@@ -572,6 +579,99 @@ export class WeekViewComponent {
     event.stopPropagation();
     this.dismissEmptyDraft();
     this.timeEntryStore.dismissGoogleEvent(eventId);
+  }
+
+  // ─── Entry drag ──────────────────────────────────────
+  onEntryMouseDown(event: MouseEvent, entry: TimeEntry, dayIdx: number) {
+    event.stopPropagation();
+    if (event.button !== 0) return;
+    if ((event.target as HTMLElement).closest('.cursor-ns-resize')) return;
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const THRESHOLD = 5;
+    let dragStarted = false;
+
+    const entryStart = new Date(entry.start);
+    const entryEnd = new Date(entry.end);
+    const durationMs = entryEnd.getTime() - entryStart.getTime();
+    const startHour = entryStart.getHours() + entryStart.getMinutes() / 60;
+
+    const yInColumn = this.getYInColumn(event);
+    const clickOffsetHour = (START_HOUR + yInColumn / this.hourHeight()) - startHour;
+
+    const dayColumns = this.getDayColumnRects();
+    let currentDayIdx = dayIdx;
+
+    let lastClientY = event.clientY;
+    const container = this.scrollContainer()?.nativeElement;
+    let stopScroll: (() => void) | null = null;
+
+    const onMove = (e: MouseEvent) => {
+      if (!dragStarted) {
+        if (Math.abs(e.clientX - startX) < THRESHOLD && Math.abs(e.clientY - startY) < THRESHOLD) return;
+        dragStarted = true;
+        this.dragging = true;
+        if (this.clickTimer) { clearTimeout(this.clickTimer); this.clickTimer = null; }
+        this.closePopover();
+        this.dismissEmptyDraft();
+        stopScroll = container ? startAutoScroll(container, () => lastClientY) : null;
+        document.body.style.cursor = 'grabbing';
+        document.body.style.userSelect = 'none';
+      }
+
+      lastClientY = e.clientY;
+
+      currentDayIdx = this.getDayIdxFromX(e.clientX, dayColumns, currentDayIdx);
+      const targetDate = this.days()[currentDayIdx].date;
+
+      const yInCol = this.getYInColumn(e);
+      const rawHour = START_HOUR + yInCol / this.hourHeight() - clickOffsetHour;
+      const snappedHour = snapToGrid(rawHour, SNAP_MINUTES);
+      const clampedHour = Math.max(START_HOUR, Math.min(snappedHour, END_HOUR - durationMs / 3600000));
+
+      const newStart = new Date(targetDate);
+      newStart.setHours(Math.floor(clampedHour), Math.round((clampedHour % 1) * 60), 0, 0);
+      const newEnd = new Date(newStart.getTime() + durationMs);
+
+      this.dragOverride.set({ entryId: entry.id, start: newStart, end: newEnd });
+    };
+
+    const onUp = () => {
+      stopScroll?.();
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+
+      if (dragStarted) {
+        const override = this.dragOverride();
+        if (override) {
+          this.timeEntryStore.updateEntry(override.entryId, { start: override.start, end: override.end });
+          this.dragOverride.set(null);
+        }
+        setTimeout(() => { this.dragging = false; }, 0);
+      }
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  private getDayColumnRects(): DOMRect[] {
+    const container = this.scrollContainer()?.nativeElement;
+    if (!container) return [];
+    const children = Array.from(container.children) as HTMLElement[];
+    return children.slice(1).map(el => el.getBoundingClientRect());
+  }
+
+  private getDayIdxFromX(clientX: number, columns: DOMRect[], fallback: number): number {
+    for (let i = 0; i < columns.length; i++) {
+      if (clientX >= columns[i].left && clientX < columns[i].right) return i;
+    }
+    if (columns.length > 0 && clientX >= columns[columns.length - 1].right) return columns.length - 1;
+    if (columns.length > 0 && clientX < columns[0].left) return 0;
+    return fallback;
   }
 
   // ─── Draft ─────────────────────────────────────────────
@@ -688,10 +788,14 @@ export class WeekViewComponent {
   getTopPosition(start: Date): number { const d = new Date(start); return (d.getHours() + d.getMinutes() / 60 - START_HOUR) * this.hourHeight(); }
   getBlockHeight(start: Date, end: Date): number { return Math.max((new Date(end).getTime() - new Date(start).getTime()) / 3600000 * this.hourHeight(), 26); }
   getEffectiveStart(entry: TimeEntry): Date {
+    const drag = this.dragOverride();
+    if (drag && drag.entryId === entry.id) return drag.start;
     const override = this.resizeTopOverride();
     return override && override.entryId === entry.id ? override.start : entry.start;
   }
   getEffectiveEnd(entry: TimeEntry): Date {
+    const drag = this.dragOverride();
+    if (drag && drag.entryId === entry.id) return drag.end;
     const override = this.resizeOverride();
     return override && override.entryId === entry.id ? override.end : entry.end;
   }
@@ -777,6 +881,11 @@ export class WeekViewComponent {
       this.undoStore.pushDelete(entries);
       this.timeEntryStore.removeEntries(entries.map(e => e.id));
     }
+    const googleEvents = this.days().flatMap(day => day.googleEvents);
+    for (const event of googleEvents) {
+      this.timeEntryStore.dismissGoogleEvent(event.id);
+    }
+    this.calendarStore.clearEvents();
   }
 
   toggleVacation(day: { date: Date; entries: TimeEntry[]; isVacation: boolean }) {
