@@ -325,7 +325,7 @@ export class DayViewComponent {
   onGridMouseDown(event: MouseEvent) {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement;
-    if (target.closest('[data-entry]') || target.closest('input')) return;
+    if (target.closest('input')) return;
 
     const y = this.getYInGrid(event);
     const hour = this.snapHalf(START_HOUR + y / HOUR_HEIGHT);
