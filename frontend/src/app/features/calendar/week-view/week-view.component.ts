@@ -44,6 +44,7 @@ const HOUR_HEIGHT = 64;
         </button>
         <app-clear-confirm-popover
           [entryCount]="weekEntryCount()"
+          [googleEventCount]="weekGoogleEventCount()"
           label="dieser Woche"
           title="Woche leeren"
           (confirm)="clearView()"
@@ -818,6 +819,10 @@ export class WeekViewComponent {
 
   readonly weekEntryCount = computed(() =>
     this.days().reduce((sum, day) => sum + day.entries.length, 0)
+  );
+
+  readonly weekGoogleEventCount = computed(() =>
+    this.days().reduce((sum, day) => sum + day.googleEvents.length, 0)
   );
 
   readonly weekProjectSummary = computed(() => {

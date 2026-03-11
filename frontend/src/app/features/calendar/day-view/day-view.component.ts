@@ -63,6 +63,7 @@ const HOUR_HEIGHT = 72;
         <app-project-pills-bar class="ml-auto flex-1 min-w-0 max-w-md" />
         <app-clear-confirm-popover
           [entryCount]="dayEntryCount()"
+          [googleEventCount]="googleEvents().length"
           label="dieses Tages"
           title="Tag leeren"
           (confirm)="clearView()"

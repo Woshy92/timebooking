@@ -15,7 +15,15 @@ import { Component, input, output, signal } from '@angular/core';
       @if (open()) {
         <div class="fixed inset-0 z-30" (click)="open.set(false)"></div>
         <div class="absolute top-full right-0 mt-1 w-56 bg-white rounded-xl shadow-xl border border-gray-200 p-3 z-40 animate-pop-in">
-          <p class="text-xs text-gray-600 mb-2">Alle <strong>{{ entryCount() }}</strong> Einträge {{ label() }} löschen?</p>
+          <p class="text-xs text-gray-600 mb-2">
+            @if (entryCount() > 0 && googleEventCount() > 0) {
+              <strong>{{ entryCount() }}</strong> Einträge und <strong>{{ googleEventCount() }}</strong> Kalendervorschläge {{ label() }} löschen?
+            } @else if (entryCount() > 0) {
+              Alle <strong>{{ entryCount() }}</strong> Einträge {{ label() }} löschen?
+            } @else if (googleEventCount() > 0) {
+              Alle <strong>{{ googleEventCount() }}</strong> Kalendervorschläge {{ label() }} löschen?
+            }
+          </p>
           <div class="flex gap-2">
             <button (click)="open.set(false)"
               class="flex-1 px-3 py-1.5 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 transition-colors">
@@ -33,6 +41,7 @@ import { Component, input, output, signal } from '@angular/core';
 })
 export class ClearConfirmPopoverComponent {
   entryCount = input.required<number>();
+  googleEventCount = input(0);
   label = input.required<string>();
   title = input('Leeren');
   confirm = output<void>();
