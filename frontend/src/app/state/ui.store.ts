@@ -14,6 +14,8 @@ interface UiState {
   defaultProjectId: string | null;
 }
 
+const DEFAULT_PROJECT_KEY = 'tb:default-project-id';
+
 const initialState: UiState = {
   activeView: 'week',
   activeDate: new Date(),
@@ -21,7 +23,7 @@ const initialState: UiState = {
   isEntryModalOpen: false,
   isProjectPanelOpen: false,
   isExportPanelOpen: false,
-  defaultProjectId: null,
+  defaultProjectId: localStorage.getItem(DEFAULT_PROJECT_KEY),
 };
 
 export const UiStore = signalStore(
@@ -72,6 +74,11 @@ export const UiStore = signalStore(
     },
     setDefaultProject(projectId: string | null) {
       patchState(store, { defaultProjectId: projectId });
+      if (projectId) {
+        localStorage.setItem(DEFAULT_PROJECT_KEY, projectId);
+      } else {
+        localStorage.removeItem(DEFAULT_PROJECT_KEY);
+      }
     },
   }))
 );
