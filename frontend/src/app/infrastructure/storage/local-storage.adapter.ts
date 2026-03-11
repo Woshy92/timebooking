@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { StoragePort } from '../../domain/ports/storage.port';
 import { TimeEntry, CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../../domain/models/time-entry.model';
 import { Project, CreateProjectDTO } from '../../domain/models/project.model';
@@ -31,7 +31,7 @@ export class LocalStorageAdapter implements StoragePort {
   updateEntry(id: string, changes: UpdateTimeEntryDTO): Observable<TimeEntry> {
     const all = this.readAll<TimeEntry>(ENTRIES_KEY);
     const index = all.findIndex(e => e.id === id);
-    if (index === -1) throw new Error(`Entry ${id} not found`);
+    if (index === -1) return throwError(() => new Error(`Entry ${id} not found`));
     const updated = { ...all[index], ...changes };
     all[index] = updated;
     this.persist(ENTRIES_KEY, all);
@@ -83,7 +83,7 @@ export class LocalStorageAdapter implements StoragePort {
   updateProject(id: string, changes: Partial<Project>): Observable<Project> {
     const all = this.readAll<Project>(PROJECTS_KEY);
     const index = all.findIndex(p => p.id === id);
-    if (index === -1) throw new Error(`Project ${id} not found`);
+    if (index === -1) return throwError(() => new Error(`Project ${id} not found`));
     const updated = { ...all[index], ...changes };
     all[index] = updated;
     this.persist(PROJECTS_KEY, all);
