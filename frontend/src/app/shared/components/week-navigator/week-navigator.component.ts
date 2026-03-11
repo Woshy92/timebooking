@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, computed } from '@angular/core';
 import { UiStore } from '../../../state/ui.store';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -35,8 +35,8 @@ import { getISOWeek } from 'date-fns';
       </button>
 
       <div class="ml-1.5">
-        <div class="text-xs font-semibold text-white">KW {{ weekNumber }}</div>
-        <div class="text-[10px] text-gray-500">{{ dateRange }}</div>
+        <div class="text-xs font-semibold text-white">KW {{ weekNumber() }}</div>
+        <div class="text-[10px] text-gray-500">{{ dateRange() }}</div>
       </div>
     </div>
   `,
@@ -44,13 +44,11 @@ import { getISOWeek } from 'date-fns';
 export class WeekNavigatorComponent {
   protected readonly ui = inject(UiStore);
 
-  get weekNumber(): number {
-    return getISOWeek(this.ui.activeDate());
-  }
+  readonly weekNumber = computed(() => getISOWeek(this.ui.activeDate()));
 
-  get dateRange(): string {
+  readonly dateRange = computed(() => {
     const start = format(this.ui.weekStart(), 'dd. MMM', { locale: de });
     const end = format(this.ui.weekEnd(), 'dd. MMM yyyy', { locale: de });
     return `${start} – ${end}`;
-  }
+  });
 }
