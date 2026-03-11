@@ -49,14 +49,7 @@ import { UiStore } from '../../../state/ui.store';
       }
     </div>
   `,
-  styles: [`
-    :host { display: flex; min-width: 0; flex: 1; }
-    @keyframes pop-in {
-      from { opacity: 0; transform: scale(0.95); }
-      to { opacity: 1; transform: scale(1); }
-    }
-    .animate-pop-in { animation: pop-in 0.12s ease-out; }
-  `],
+  styles: [`:host { display: flex; min-width: 0; flex: 1; }`],
 })
 export class ProjectPillsBarComponent {
   private readonly projectStore = inject(ProjectStore);

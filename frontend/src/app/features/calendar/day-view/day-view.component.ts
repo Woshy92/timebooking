@@ -234,14 +234,7 @@ const HOUR_HEIGHT = 72;
       </div>
     }
   `,
-  styles: [`
-    :host { display: flex; flex-direction: column; height: 100%; }
-    @keyframes pop-in {
-      from { opacity: 0; transform: scale(0.95); }
-      to { opacity: 1; transform: scale(1); }
-    }
-    .animate-pop-in { animation: pop-in 0.12s ease-out; }
-  `],
+  styles: [`:host { display: flex; flex-direction: column; height: 100%; }`],
 })
 export class DayViewComponent {
   protected readonly ui = inject(UiStore);
