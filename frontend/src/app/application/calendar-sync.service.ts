@@ -21,6 +21,7 @@ export class CalendarSyncService {
       title: event.title,
       start: event.start,
       end: event.end,
+      projectId: this.uiStore.defaultProjectId() ?? undefined,
       source: 'google',
       googleEventId: event.id,
     });

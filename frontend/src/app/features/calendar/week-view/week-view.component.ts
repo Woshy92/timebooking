@@ -4,6 +4,7 @@ import { TimeEntryStore } from '../../../state/time-entry.store';
 import { ProjectStore } from '../../../state/project.store';
 import { CalendarStore } from '../../../state/calendar.store';
 import { UiStore } from '../../../state/ui.store';
+import { CalendarSyncService } from '../../../application/calendar-sync.service';
 import { format, eachDayOfInterval, isSameDay, startOfDay, isWeekend } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { TimeEntry } from '../../../domain/models/time-entry.model';
@@ -260,6 +261,7 @@ export class WeekViewComponent {
   protected readonly projectStore = inject(ProjectStore);
   private readonly calendarStore = inject(CalendarStore);
   protected readonly uiStore = inject(UiStore);
+  private readonly calendarSyncService = inject(CalendarSyncService);
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -466,11 +468,7 @@ export class WeekViewComponent {
 
   onGoogleEventClick(event: MouseEvent, calEvent: CalendarEvent) {
     event.stopPropagation();
-    this.timeEntryStore.addEntry({
-      title: calEvent.title, start: calEvent.start, end: calEvent.end,
-      projectId: this.uiStore.defaultProjectId() ?? undefined,
-      source: 'google', googleEventId: calEvent.id,
-    });
+    this.calendarSyncService.importEvent(calEvent);
   }
 
   // ─── Draft ─────────────────────────────────────────────

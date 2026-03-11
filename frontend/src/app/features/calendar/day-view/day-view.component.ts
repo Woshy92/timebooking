@@ -4,6 +4,7 @@ import { TimeEntryStore } from '../../../state/time-entry.store';
 import { ProjectStore } from '../../../state/project.store';
 import { CalendarStore } from '../../../state/calendar.store';
 import { UiStore } from '../../../state/ui.store';
+import { CalendarSyncService } from '../../../application/calendar-sync.service';
 import { DurationPipe } from '../../../shared/pipes/duration.pipe';
 import { format, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -225,6 +226,7 @@ export class DayViewComponent {
   private readonly timeEntryStore = inject(TimeEntryStore);
   protected readonly projectStore = inject(ProjectStore);
   private readonly calendarStore = inject(CalendarStore);
+  private readonly calendarSyncService = inject(CalendarSyncService);
 
   readonly scrollContainer = viewChild<ElementRef>('scrollContainer');
   readonly draftInput = viewChild<ElementRef>('draftInput');
@@ -433,7 +435,7 @@ export class DayViewComponent {
 
   onGoogleEventClick(event: MouseEvent, calEvent: CalendarEvent) {
     event.stopPropagation();
-    this.timeEntryStore.addEntry({ title: calEvent.title, start: calEvent.start, end: calEvent.end, projectId: this.ui.defaultProjectId() ?? undefined, source: 'google', googleEventId: calEvent.id });
+    this.calendarSyncService.importEvent(calEvent);
   }
 
   getDurationMinutes(entry: TimeEntry) { return (new Date(entry.end).getTime() - new Date(entry.start).getTime()) / 60000; }
