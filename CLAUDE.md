@@ -28,16 +28,24 @@ frontend/src/app/
   domain/models/       → TimeEntry, Project, CalendarEvent (reine Interfaces)
   domain/ports/        → CalendarPort, StoragePort, ExportPort (InjectionToken + Interface)
   application/         → CalendarSyncService, ExportService (Use-Case Orchestrierung)
-  infrastructure/      → Adapter-Implementierungen
+  infrastructure/
+    calendar/          → GoogleCalendarAdapter, NoopCalendarAdapter
+    export/            → PdfExportAdapter, CsvExportAdapter
+    storage/           → LocalStorageAdapter, IndexedDbAdapter
   state/               → UiStore, TimeEntryStore, ProjectStore, CalendarStore
   features/            → calendar/, time-entry/, projects/, export/ (lazy loaded)
-  shared/              → Modal, ColorPicker, WeekNavigator, DurationPipe
+  shared/
+    components/        → Modal, ColorPicker, WeekNavigator, ProjectPillsBar
+    pipes/             → DurationPipe
 
 backend/src/
-  config/              → OAuth2 Client
+  config/              → OAuth2 Client (oauth.config.ts)
   routes/              → auth.routes.ts, calendar.routes.ts
   services/            → google-calendar.service.ts
   middleware/           → auth.middleware.ts
+  types/               → express-session.d.ts (Session-Typen)
+  server.ts            → Server-Entrypoint
+  app.ts               → Express App Factory
 ```
 
 ## Wichtige Dateien
@@ -65,7 +73,8 @@ cd backend && npm run build      # TypeScript kompilieren
 
 ## Patterns
 
-- **Export-Port**: Hat zwei Adapter (PDF + CSV) mit separaten InjectionTokens (`PDF_EXPORT_PORT`, `CSV_EXPORT_PORT`). `ExportService` wählt anhand des Formats.
-- **Google Calendar Events**: Werden erst im CalendarStore als `CalendarEvent[]` gehalten. Erst bei Klick werden sie als `TimeEntry` mit `source: 'google'` und `googleEventId` in den TimeEntryStore importiert. Bereits importierte Events (matching via `googleEventId`) werden in der Kalenderansicht nicht mehr als Google-Events angezeigt.
+- **Export-Port**: Hat zwei Adapter (PDF + CSV) mit separaten InjectionTokens (`PDF_EXPORT_PORT`, `CSV_EXPORT_PORT`). `ExportService` wählt anhand des Formats. PDF ist Querformat mit Projektfarben (Zeilenhintergrund + Farbpunkt). Optionale Zusammenfassungsseite (Projekt × Tag) über `ExportOptions.includeSummary` steuerbar.
+- **Google Calendar Events**: Werden erst im CalendarStore als `CalendarEvent[]` gehalten. Erst bei Klick werden sie als `TimeEntry` mit `source: 'google'` und `googleEventId` in den TimeEntryStore importiert. Bereits importierte Events (matching via `googleEventId`) werden in der Kalenderansicht nicht mehr als Google-Events angezeigt. Events können dismissed werden (`dismissedGoogleEventIds` in TimeEntryStore, persistiert in `tb:dismissed-google-events` localStorage Key).
+- **Default-Projekt**: `ProjectPillsBarComponent` (shared) ersetzt den alten Dropdown. Beide Views (Week + Day) importieren es. `onGoogleEventClick` vergibt automatisch `defaultProjectId`.
 - **UI-State**: `UiStore` hält transiente UI-Zustände (activeView, activeDate, Modals). Nicht in der URL, nicht persistent.
-- **Session-Auth**: Google Tokens liegen in der Express-Session (httpOnly Cookie). Frontend bekommt nie die Tokens direkt.
+- **Session-Auth**: Google Tokens liegen in der Express-Session (httpOnly Cookie, `session-file-store` in `backend/sessions/`). Sessions überleben Server-Neustarts. Frontend bekommt nie die Tokens direkt.
