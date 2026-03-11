@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, ElementRef, viewChild, afterNextRender, HostListener, DestroyRef, effect } from '@angular/core';
+import { Component, inject, computed, signal, ElementRef, viewChild, afterNextRender, HostListener, DestroyRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TimeEntryStore } from '../../../state/time-entry.store';
 import { ProjectStore } from '../../../state/project.store';
@@ -253,13 +253,6 @@ export class WeekViewComponent {
     const id = this.uiStore.defaultProjectId();
     if (id) return this.projectStore.projectMap().get(id) ?? null;
     return this.projectStore.activeProjects()[0] ?? null;
-  });
-
-  private autoSelectEffect = effect(() => {
-    if (!this.uiStore.defaultProjectId()) {
-      const first = this.projectStore.activeProjects()[0];
-      if (first) this.uiStore.setDefaultProject(first.id);
-    }
   });
 
   readonly draftColor = computed(() => this.defaultProject()?.color ?? '#6366F1');

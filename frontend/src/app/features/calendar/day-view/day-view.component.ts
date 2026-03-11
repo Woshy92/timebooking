@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, ElementRef, viewChild, afterNextRender, HostListener, effect } from '@angular/core';
+import { Component, inject, computed, signal, ElementRef, viewChild, afterNextRender, HostListener } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TimeEntryStore } from '../../../state/time-entry.store';
 import { ProjectStore } from '../../../state/project.store';
@@ -209,13 +209,6 @@ export class DayViewComponent {
     const id = this.ui.defaultProjectId();
     if (id) return this.projectStore.projectMap().get(id) ?? null;
     return this.projectStore.activeProjects()[0] ?? null;
-  });
-
-  private autoSelectEffect = effect(() => {
-    if (!this.ui.defaultProjectId()) {
-      const first = this.projectStore.activeProjects()[0];
-      if (first) this.ui.setDefaultProject(first.id);
-    }
   });
 
   readonly draftColor = computed(() => this.defaultProject()?.color ?? '#6366F1');
