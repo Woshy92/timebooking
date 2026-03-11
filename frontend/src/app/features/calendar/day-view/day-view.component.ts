@@ -97,10 +97,19 @@ const HOUR_HEIGHT = 72;
                 <svg class="w-3.5 h-3.5 text-gray-400 group-hover:text-indigo-500 mt-[1px] flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                 </svg>
-                <div class="min-w-0">
+                <div class="min-w-0 flex-1">
                   <div class="font-medium text-gray-500 group-hover:text-indigo-600 transition-colors">{{ event.title }}</div>
                   <div class="text-gray-400 text-xs tabular-nums">{{ formatTime(event.start) }}–{{ formatTime(event.end) }} · Importieren</div>
                 </div>
+                <button
+                  class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-all flex-shrink-0"
+                  title="Ausblenden"
+                  (click)="dismissGoogleEvent($event, event.id)"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
               </div>
             </div>
           }
@@ -403,6 +412,11 @@ export class DayViewComponent {
   onGoogleEventClick(event: MouseEvent, calEvent: CalendarEvent) {
     event.stopPropagation();
     this.calendarSyncService.importEvent(calEvent);
+  }
+
+  dismissGoogleEvent(event: MouseEvent, eventId: string) {
+    event.stopPropagation();
+    this.timeEntryStore.dismissGoogleEvent(eventId);
   }
 
   getDurationMinutes(entry: TimeEntry) { const end = this.getEffectiveEnd(entry); return (new Date(end).getTime() - new Date(entry.start).getTime()) / 60000; }

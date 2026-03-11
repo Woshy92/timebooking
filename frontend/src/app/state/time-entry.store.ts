@@ -92,6 +92,13 @@ export const TimeEntryStore = signalStore(
           next: (ids) => patchState(store, { dismissedGoogleEventIds: ids }),
         });
       },
+      dismissGoogleEvent(eventId: string) {
+        storage.dismissGoogleEvent(eventId).subscribe({
+          next: () => patchState(store, {
+            dismissedGoogleEventIds: [...store.dismissedGoogleEventIds(), eventId],
+          }),
+        });
+      },
       assignProject(entryId: string, projectId: string | undefined) {
         const entry = store.entries().find(e => e.id === entryId);
         if (!entry) return;

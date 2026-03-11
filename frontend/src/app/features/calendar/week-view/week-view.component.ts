@@ -124,10 +124,19 @@ const HOUR_HEIGHT = 64;
                   <svg class="w-3 h-3 text-gray-400 group-hover:text-indigo-500 mt-[1px] flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                   </svg>
-                  <div class="min-w-0 flex flex-col overflow-hidden">
+                  <div class="min-w-0 flex flex-col overflow-hidden flex-1">
                     <div class="font-medium text-gray-500 group-hover:text-indigo-600 truncate flex-shrink-0 transition-colors">{{ event.title }}</div>
                     <div class="text-gray-400 text-[10px] tabular-nums flex-shrink overflow-hidden leading-tight">{{ formatTime(event.start) }}–{{ formatTime(event.end) }}</div>
                   </div>
+                  <button
+                    class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-all flex-shrink-0"
+                    title="Ausblenden"
+                    (click)="dismissGoogleEvent($event, event.id)"
+                  >
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                  </button>
                 </div>
               </div>
             }
@@ -427,6 +436,11 @@ export class WeekViewComponent {
   onGoogleEventClick(event: MouseEvent, calEvent: CalendarEvent) {
     event.stopPropagation();
     this.calendarSyncService.importEvent(calEvent);
+  }
+
+  dismissGoogleEvent(event: MouseEvent, eventId: string) {
+    event.stopPropagation();
+    this.timeEntryStore.dismissGoogleEvent(eventId);
   }
 
   // ─── Draft ─────────────────────────────────────────────
