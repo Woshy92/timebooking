@@ -101,6 +101,23 @@ export class IndexedDbAdapter implements StoragePort {
     await this.tx(STORES.entries, 'readwrite', s => s.delete(id));
   }
 
+  deleteEntries(ids: string[]): Observable<string[]> {
+    return from(this.doDeleteEntries(ids));
+  }
+
+  private async doDeleteEntries(ids: string[]): Promise<string[]> {
+    const dismissedGoogleIds: string[] = [];
+    for (const id of ids) {
+      const existing = await this.tx<TimeEntry>(STORES.entries, 'readonly', s => s.get(id));
+      if (existing?.googleEventId) {
+        dismissedGoogleIds.push(existing.googleEventId);
+        await this.tx(STORES.dismissed, 'readwrite', s => s.put({ eventId: existing.googleEventId }));
+      }
+      await this.tx(STORES.entries, 'readwrite', s => s.delete(id));
+    }
+    return dismissedGoogleIds;
+  }
+
   // ─── Dismissed Google Events ───────────────────────────
 
   getDismissedGoogleEventIds(): Observable<string[]> {
