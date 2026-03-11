@@ -12,6 +12,7 @@ import { CalendarEvent } from '../../../domain/models/calendar-event.model';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
 import { DraftEntry, PopoverState, START_HOUR, END_HOUR, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
 import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as calcEntryWidth } from '../../../shared/utils/overlap-layout';
+import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
 
 const HOUR_HEIGHT = 64;
 
@@ -433,14 +434,14 @@ export class WeekViewComponent {
     if (this.popover()) { this.closePopover(); return; }
 
     const y = this.getYInColumn(event);
-    const hour = this.snapToHalfHour(START_HOUR + y / this.hourHeight());
+    const hour = snapToHalfHour(START_HOUR + y / this.hourHeight());
 
     this.draft.set({ date, startHour: hour, endHour: hour + 0.5, title: '' });
     setTimeout(() => this.draftInput()?.nativeElement?.focus(), 0);
 
     const onMove = (e: MouseEvent) => {
       const currentY = this.getYInColumn(e);
-      const currentHour = this.snapToGrid(START_HOUR + currentY / this.hourHeight());
+      const currentHour = snapToGrid(START_HOUR + currentY / this.hourHeight(), SNAP_MINUTES);
       const d = this.draft();
       if (d) {
         const newEnd = Math.max(currentHour, d.startHour + 0.25);
@@ -494,7 +495,7 @@ export class WeekViewComponent {
   isDraftOnDay(date: Date): boolean { return !!this.draft() && isSameDay(this.draft()!.date, date); }
   getDraftTop(): number { return (this.draft()!.startHour - START_HOUR) * this.hourHeight(); }
   getDraftHeight(): number { const d = this.draft()!; return Math.max((d.endHour - d.startHour) * this.hourHeight(), 26); }
-  formatDraftTime(): string { const d = this.draft()!; return `${this.hourToStr(d.startHour)}–${this.hourToStr(d.endHour)}`; }
+  formatDraftTime(): string { const d = this.draft()!; return `${hourToStr(d.startHour)}–${hourToStr(d.endHour)}`; }
   updateDraftTitle(title: string) { const d = this.draft(); if (d) this.draft.set({ ...d, title }); }
 
   saveDraft() {
@@ -515,7 +516,7 @@ export class WeekViewComponent {
     this.resizeStartEndHour = this.draft()!.endHour;
     const onMove = (e: MouseEvent) => {
       const d = this.draft()!;
-      const newEnd = this.snapToGrid(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / this.hourHeight());
+      const newEnd = snapToGrid(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / this.hourHeight(), SNAP_MINUTES);
       this.draft.set({ ...d, endHour: Math.max(newEnd, d.startHour + 0.25) });
     };
     const onUp = () => { this.resizingDraft = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
@@ -532,7 +533,7 @@ export class WeekViewComponent {
     const onMove = (e: MouseEvent) => {
       const startDate = new Date(entry.start);
       const startHour = startDate.getHours() + startDate.getMinutes() / 60;
-      const newEndHour = this.snapToGrid(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / this.hourHeight());
+      const newEndHour = snapToGrid(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / this.hourHeight(), SNAP_MINUTES);
       const clampedEnd = Math.max(newEndHour, startHour + 0.25);
       const newEnd = new Date(entry.end); newEnd.setHours(Math.floor(clampedEnd), (clampedEnd % 1) * 60, 0, 0);
       this.timeEntryStore.updateEntry(entry.id, { end: newEnd });
@@ -548,7 +549,7 @@ export class WeekViewComponent {
   getEntryBg(entry: TimeEntry): string { return this.getEntryColor(entry) + '18'; }
   getEntryTextColor(entry: TimeEntry): string { return this.getEntryColor(entry); }
   getProject(entry: TimeEntry): Project | null { return entry.projectId ? (this.projectStore.projectMap().get(entry.projectId) ?? null) : null; }
-  formatTime(date: Date): string { return format(new Date(date), 'HH:mm'); }
+  formatTime = formatTime;
 
   toggleFitToScreen() {
     this.fitToScreen.update(v => !v);
@@ -572,10 +573,5 @@ export class WeekViewComponent {
     }
     this.confirmClear.set(false);
   }
-
-  // ─── Utilities ─────────────────────────────────────────
-  private snapToHalfHour(hour: number): number { return Math.round(hour * 2) / 2; }
-  private snapToGrid(hour: number): number { const step = SNAP_MINUTES / 60; return Math.round(hour / step) * step; }
-  private hourToStr(hour: number): string { const h = Math.floor(hour); const m = Math.round((hour % 1) * 60); return `${h < 10 ? '0' + h : h}:${m < 10 ? '0' + m : m}`; }
 
 }

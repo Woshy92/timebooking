@@ -13,6 +13,7 @@ import { CalendarEvent } from '../../../domain/models/calendar-event.model';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
 import { DraftEntry, PopoverState, START_HOUR, END_HOUR, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
 import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as calcEntryWidth } from '../../../shared/utils/overlap-layout';
+import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
 
 const HOUR_HEIGHT = 72;
 
@@ -328,14 +329,14 @@ export class DayViewComponent {
     if (target.closest('input')) return;
 
     const y = this.getYInGrid(event);
-    const hour = this.snapHalf(START_HOUR + y / HOUR_HEIGHT);
+    const hour = snapToHalfHour(START_HOUR + y / HOUR_HEIGHT);
 
     this.draft.set({ date: this.ui.activeDate(), startHour: hour, endHour: hour + 0.5, title: '' });
     setTimeout(() => this.draftInput()?.nativeElement?.focus(), 0);
 
     const onMove = (e: MouseEvent) => {
       const curY = this.getYInGrid(e);
-      const curHour = this.snap(START_HOUR + curY / HOUR_HEIGHT);
+      const curHour = snapToGrid(START_HOUR + curY / HOUR_HEIGHT, SNAP_MINUTES);
       const d = this.draft()!;
       this.draft.set({ ...d, endHour: Math.min(Math.max(curHour, d.startHour + 0.25), END_HOUR) });
     };
@@ -350,7 +351,7 @@ export class DayViewComponent {
 
   getDraftTop() { return (this.draft()!.startHour - START_HOUR) * HOUR_HEIGHT; }
   getDraftHeight() { const d = this.draft()!; return Math.max((d.endHour - d.startHour) * HOUR_HEIGHT, 34); }
-  formatDraftTime() { const d = this.draft()!; return `${this.hts(d.startHour)}–${this.hts(d.endHour)}`; }
+  formatDraftTime() { const d = this.draft()!; return `${hourToStr(d.startHour)}–${hourToStr(d.endHour)}`; }
   updateDraftTitle(t: string) { const d = this.draft(); if (d) this.draft.set({ ...d, title: t }); }
 
   saveDraft() {
@@ -370,7 +371,7 @@ export class DayViewComponent {
     this.resizeStartEndHour = this.draft()!.endHour;
     const onMove = (e: MouseEvent) => {
       const d = this.draft()!;
-      const newEnd = this.snap(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / HOUR_HEIGHT);
+      const newEnd = snapToGrid(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / HOUR_HEIGHT, SNAP_MINUTES);
       this.draft.set({ ...d, endHour: Math.max(newEnd, d.startHour + 0.25) });
     };
     const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
@@ -386,7 +387,7 @@ export class DayViewComponent {
     const onMove = (e: MouseEvent) => {
       const sd = new Date(entry.start);
       const startH = sd.getHours() + sd.getMinutes() / 60;
-      const newEnd = this.snap(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / HOUR_HEIGHT);
+      const newEnd = snapToGrid(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / HOUR_HEIGHT, SNAP_MINUTES);
       const clamped = Math.max(newEnd, startH + 0.25);
       const ne = new Date(entry.end); ne.setHours(Math.floor(clamped), (clamped % 1) * 60, 0, 0);
       this.timeEntryStore.updateEntry(entry.id, { end: ne });
@@ -458,7 +459,7 @@ export class DayViewComponent {
   getBlockHeight(start: Date, end: Date) { return Math.max((new Date(end).getTime() - new Date(start).getTime()) / 3600000 * HOUR_HEIGHT, 34); }
   getEntryColor(entry: TimeEntry) { return entry.projectId ? (this.projectStore.projectMap().get(entry.projectId)?.color ?? '#6366F1') : '#6366F1'; }
   getProject(entry: TimeEntry): Project | null { return entry.projectId ? (this.projectStore.projectMap().get(entry.projectId) ?? null) : null; }
-  formatTime(date: Date) { return format(new Date(date), 'HH:mm'); }
+  formatTime = formatTime;
 
   clearView() {
     for (const entry of this.entries()) {
@@ -474,9 +475,5 @@ export class DayViewComponent {
   getEntryWidth(entryId: string): string {
     return calcEntryWidth(this.entryLayout(), entryId, 24, 2);
   }
-
-  private snapHalf(h: number) { return Math.round(h * 2) / 2; }
-  private snap(h: number) { const s = SNAP_MINUTES / 60; return Math.round(h / s) * s; }
-  private hts(h: number) { const hr = Math.floor(h); const m = Math.round((h % 1) * 60); return `${hr < 10 ? '0' + hr : hr}:${m < 10 ? '0' + m : m}`; }
 
 }
