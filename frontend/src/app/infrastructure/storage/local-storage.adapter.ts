@@ -77,10 +77,16 @@ export class LocalStorageAdapter implements StoragePort {
     return of(void 0);
   }
 
+  clearDismissedGoogleEventIds(): Observable<void> {
+    localStorage.removeItem(DISMISSED_GOOGLE_KEY);
+    return of(void 0);
+  }
+
   getProjects(): Observable<Project[]> {
     const all = this.readAll<Project>(PROJECTS_KEY).map((p, i) => ({
       ...p,
       order: p.order ?? i,
+      rate: p.rate ?? '',
     }));
     all.sort((a, b) => a.order - b.order);
     return of(all);

@@ -131,13 +131,17 @@ export class IndexedDbAdapter implements StoragePort {
     return from(this.tx(STORES.dismissed, 'readwrite', s => s.put({ eventId })).then(() => {}));
   }
 
+  clearDismissedGoogleEventIds(): Observable<void> {
+    return from(this.tx(STORES.dismissed, 'readwrite', s => s.clear()).then(() => {}));
+  }
+
   // ─── Projects ──────────────────────────────────────────
 
   getProjects(): Observable<Project[]> {
     return from(
       this.txAll<Project>(STORES.projects, s => s.getAll())
         .then(all => {
-          all.forEach((p, i) => { p.order = p.order ?? i; });
+          all.forEach((p, i) => { p.order = p.order ?? i; p.rate = p.rate ?? ''; });
           all.sort((a, b) => a.order - b.order);
           return all;
         })
