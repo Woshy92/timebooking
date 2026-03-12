@@ -130,7 +130,7 @@ const MIN_BLOCK_HEIGHT = 26;
               [class.bg-gray-100]="!day.isVacation"
               [class.text-gray-400]="!day.isVacation"
               [class.hover:bg-gray-200]="!day.isVacation"
-              (click)="toggleVacation(day)"
+              (click)="onVacationClick(day)"
               [title]="day.isVacation ? 'Urlaub entfernen' : 'Als Urlaub markieren'">U</button>
           </div>
         }
@@ -419,6 +419,32 @@ const MIN_BLOCK_HEIGHT = 26;
       (confirm)="interaction.confirmRecurringProject()"
       (dismiss)="interaction.dismissRecurringConfirm()"
     />
+
+    @if (vacationDialog(); as vd) {
+      <div class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" (click)="vacationDialog.set(null)">
+        <div class="bg-white rounded-xl shadow-xl p-6 w-80" (click)="$event.stopPropagation()">
+          <h3 class="text-lg font-semibold text-gray-900 mb-1">Urlaub eintragen</h3>
+          <p class="text-sm text-gray-500 mb-4">Ab {{ formatDate(vd.startDate) }}</p>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Letzter Urlaubstag</label>
+            <input type="date" [value]="vd.endDateStr"
+                   [min]="vd.startDateStr"
+                   (change)="vacationEndDate = $any($event.target).value"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"/>
+          </div>
+          <div class="flex justify-end gap-2 mt-5">
+            <button (click)="vacationDialog.set(null)"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+              Abbrechen
+            </button>
+            <button (click)="applyVacationRange()"
+                    class="px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors">
+              Eintragen
+            </button>
+          </div>
+        </div>
+      </div>
+    }
 
   `,
   styles: [`:host { display: flex; flex-direction: column; height: 100%; }`],
@@ -778,12 +804,43 @@ export class WeekViewComponent {
     this.calendarStore.clearEvents();
   }
 
-  toggleVacation(day: { date: Date; entries: TimeEntry[]; isVacation: boolean }) {
+  vacationDialog = signal<{ startDate: Date; startDateStr: string; endDateStr: string } | null>(null);
+  vacationEndDate = '';
+
+  onVacationClick(day: { date: Date; entries: TimeEntry[]; isVacation: boolean }) {
     this.interaction.dismissEmptyDraft();
-    if (!day.isVacation && day.entries.length > 0) {
-      this.undoStore.pushDelete(day.entries);
-      this.timeEntryStore.removeEntries(day.entries.map(e => e.id));
+    if (day.isVacation) {
+      // Remove vacation for this day
+      this.vacationStore.toggleDay(day.date);
+    } else {
+      // Show dialog to set vacation range
+      const dateStr = format(day.date, 'yyyy-MM-dd');
+      this.vacationEndDate = dateStr;
+      this.vacationDialog.set({ startDate: day.date, startDateStr: dateStr, endDateStr: dateStr });
     }
-    this.vacationStore.toggleDay(day.date);
+  }
+
+  applyVacationRange() {
+    const vd = this.vacationDialog();
+    if (!vd) return;
+    const endDate = this.vacationEndDate ? new Date(this.vacationEndDate + 'T00:00:00') : vd.startDate;
+    const actualEnd = endDate >= vd.startDate ? endDate : vd.startDate;
+
+    // Delete entries in the range
+    const allDaysInRange = eachDayOfInterval({ start: vd.startDate, end: actualEnd }).filter(d => !isWeekend(d));
+    const entriesToDelete = this.timeEntryStore.entries().filter(e =>
+      allDaysInRange.some(d => isSameDay(new Date(e.start), d))
+    );
+    if (entriesToDelete.length > 0) {
+      this.undoStore.pushDelete(entriesToDelete);
+      this.timeEntryStore.removeEntries(entriesToDelete.map(e => e.id));
+    }
+
+    this.vacationStore.setRange(vd.startDate, actualEnd);
+    this.vacationDialog.set(null);
+  }
+
+  formatDate(date: Date): string {
+    return format(date, 'EEEE, d. MMMM', { locale: de });
   }
 }
