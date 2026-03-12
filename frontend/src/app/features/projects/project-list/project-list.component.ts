@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { ProjectStore } from '../../../state/project.store';
 import { TimeEntryStore } from '../../../state/time-entry.store';
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
@@ -29,14 +29,17 @@ import { Project, CreateProjectDTO, getProjectDisplayName } from '../../../domai
       </div>
 
       <div class="space-y-1">
-        @for (project of projectStore.activeProjects(); track project.id) {
+        @for (project of sortedProjects(); track project.id) {
           <div
-            class="flex items-center justify-between p-4 bg-white rounded-xl border-2 transition-all group cursor-grab active:cursor-grabbing"
+            class="flex items-center justify-between p-4 bg-white rounded-xl border-2 group cursor-grab active:cursor-grabbing
+                   transition-all duration-300 ease-in-out"
             [class.border-gray-400]="dragOverId() === project.id"
             [class.border-gray-100]="dragOverId() !== project.id"
             [class.shadow-sm]="draggedId() !== project.id"
             [class.opacity-30]="draggedId() === project.id"
-            [class.opacity-60]="project.ignored && draggedId() !== project.id"
+            [class.opacity-50]="project.ignored && draggedId() !== project.id && !fadingOutIds().has(project.id)"
+            [class.opacity-0]="fadingOutIds().has(project.id)"
+            [class.scale-95]="fadingOutIds().has(project.id)"
             draggable="true"
             (dragstart)="onDragStart($event, project.id)"
             (dragend)="onDragEnd()"
@@ -195,6 +198,15 @@ export class ProjectListComponent {
   draggedId = signal<string | null>(null);
   dragOverId = signal<string | null>(null);
   archiveConfirm = signal<{ project: Project; mappingCount: number } | null>(null);
+  fadingOutIds = signal<Set<string>>(new Set());
+
+  /** Display order: non-ignored first (by order), then ignored (by order) */
+  readonly sortedProjects = computed(() => {
+    const all = this.projectStore.activeProjects();
+    const normal = all.filter(p => !p.ignored);
+    const ignored = all.filter(p => p.ignored);
+    return [...normal, ...ignored];
+  });
 
   openForm(project: Project | null) {
     this.editingProject.set(project);
@@ -226,9 +238,31 @@ export class ProjectListComponent {
   }
 
   toggleIgnored(project: Project) {
-    const changes: Partial<Project> = { ignored: !project.ignored };
-    if (!project.ignored) changes.favorite = false;
-    this.projectStore.updateProject(project.id, changes);
+    const willBeIgnored = !project.ignored;
+    const changes: Partial<Project> = { ignored: willBeIgnored };
+    if (willBeIgnored) changes.favorite = false;
+
+    if (willBeIgnored) {
+      // Phase 1: update immediately (toggle flips, card stays in place)
+      this.projectStore.updateProject(project.id, changes);
+
+      // Phase 2: after a beat, fade out the card
+      setTimeout(() => {
+        this.fadingOutIds.update(s => new Set([...s, project.id]));
+      }, 300);
+
+      // Phase 3: after fade completes, reorder + persist
+      setTimeout(() => {
+        this.fadingOutIds.update(s => {
+          const next = new Set(s);
+          next.delete(project.id);
+          return next;
+        });
+        this.reorderIgnoredToBottom();
+      }, 600);
+    } else {
+      this.projectStore.updateProject(project.id, changes);
+    }
   }
 
   onArchive(project: Project) {
@@ -275,7 +309,7 @@ export class ProjectListComponent {
     const draggedId = this.draggedId();
     if (!draggedId || draggedId === targetId) return;
 
-    const ids = this.projectStore.activeProjects().map(p => p.id);
+    const ids = this.sortedProjects().map(p => p.id);
     const fromIndex = ids.indexOf(draggedId);
     const toIndex = ids.indexOf(targetId);
     if (fromIndex === -1 || toIndex === -1) return;
@@ -286,5 +320,13 @@ export class ProjectListComponent {
 
     this.draggedId.set(null);
     this.dragOverId.set(null);
+  }
+
+  private reorderIgnoredToBottom() {
+    const all = this.projectStore.activeProjects();
+    const normal = all.filter(p => !p.ignored);
+    const ignored = all.filter(p => p.ignored);
+    const orderedIds = [...normal, ...ignored].map(p => p.id);
+    this.projectStore.reorderProjects(orderedIds);
   }
 }
