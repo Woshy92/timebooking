@@ -1,5 +1,6 @@
 import { Component, inject, input, output, computed } from '@angular/core';
 import { ProjectStore } from '../../../state/project.store';
+import { getProjectDisplayName } from '../../../domain/models/project.model';
 
 @Component({
   selector: 'app-project-popover',
@@ -26,7 +27,7 @@ import { ProjectStore } from '../../../state/project.store';
           [class.font-semibold]="commonProjectId() === project.id"
         >
           <div class="w-3 h-3 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
-          <span class="text-gray-800 truncate">{{ project.name }}</span>
+          <span class="text-gray-800 truncate">{{ getDisplayName(project) }}</span>
           @if (commonProjectId() === project.id) {
             <svg class="w-3.5 h-3.5 text-indigo-500 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
@@ -35,6 +36,17 @@ import { ProjectStore } from '../../../state/project.store';
         </button>
       }
       <div class="border-t border-gray-100 mt-1 pt-1">
+        @if (selectedCount() === 1) {
+          <button
+            (click)="openDetails.emit()"
+            class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 transition-colors text-left"
+          >
+            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            <span>Details öffnen</span>
+          </button>
+        }
         <button
           (click)="delete.emit()"
           class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors text-left"
@@ -54,6 +66,7 @@ import { ProjectStore } from '../../../state/project.store';
 })
 export class ProjectPopoverComponent {
   protected readonly projectStore = inject(ProjectStore);
+  protected readonly getDisplayName = getProjectDisplayName;
 
   x = input.required<number>();
   y = input.required<number>();
@@ -61,6 +74,7 @@ export class ProjectPopoverComponent {
   commonProjectId = input.required<string | undefined | null>();
 
   assign = output<string>();
+  openDetails = output<void>();
   delete = output<void>();
   close = output<void>();
 }

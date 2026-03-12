@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { ExportPort, ExportOptions } from '../../domain/ports/export.port';
+import { getProjectDisplayName } from '../../domain/models/project.model';
 import Papa from 'papaparse';
 import { format } from 'date-fns';
 
@@ -16,7 +17,7 @@ export class CsvExportAdapter implements ExportPort {
       Von: format(entry.start, 'HH:mm'),
       Bis: format(entry.end, 'HH:mm'),
       'Dauer (h)': ((entry.end.getTime() - entry.start.getTime()) / 3600000).toFixed(2),
-      Projekt: entry.projectId ? (projectMap.get(entry.projectId)?.name ?? '') : '',
+      Projekt: entry.projectId ? (projectMap.get(entry.projectId) ? getProjectDisplayName(projectMap.get(entry.projectId)!) : '') : '',
       Beschreibung: entry.title,
       Notizen: entry.notes ?? '',
     }));

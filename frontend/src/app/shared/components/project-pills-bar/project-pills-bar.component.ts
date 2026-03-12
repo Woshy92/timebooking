@@ -1,6 +1,7 @@
 import { Component, inject, computed, signal, ElementRef, viewChild, viewChildren, afterNextRender, DestroyRef, effect } from '@angular/core';
 import { ProjectStore } from '../../../state/project.store';
 import { UiStore } from '../../../state/ui.store';
+import { getProjectDisplayName } from '../../../domain/models/project.model';
 
 @Component({
   selector: 'app-project-pills-bar',
@@ -19,7 +20,7 @@ import { UiStore } from '../../../state/ui.store';
             [style.display]="i < visibleCount() ? '' : 'none'"
           >
             <div class="w-2 h-2 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
-            {{ project.name }}
+            {{ getDisplayName(project) }}
           </button>
         }
       </div>
@@ -40,7 +41,7 @@ import { UiStore } from '../../../state/ui.store';
                   [class.font-semibold]="isSelected(project.id)"
                 >
                   <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
-                  <span class="text-gray-800 truncate">{{ project.name }}</span>
+                  <span class="text-gray-800 truncate">{{ getDisplayName(project) }}</span>
                 </button>
               }
             </div>
@@ -55,6 +56,7 @@ export class ProjectPillsBarComponent {
   private readonly projectStore = inject(ProjectStore);
   private readonly uiStore = inject(UiStore);
   private readonly destroyRef = inject(DestroyRef);
+  protected readonly getDisplayName = getProjectDisplayName;
 
   readonly pillsContainer = viewChild<ElementRef>('pillsContainer');
   readonly pillElements = viewChildren<ElementRef>('pill');

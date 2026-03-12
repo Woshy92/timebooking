@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { ExportPort, ExportOptions } from '../../domain/ports/export.port';
+import { getProjectDisplayName } from '../../domain/models/project.model';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format, eachDayOfInterval, isSameDay } from 'date-fns';
@@ -49,7 +50,7 @@ export class PdfExportAdapter implements ExportPort {
       format(entry.start, 'HH:mm'),
       format(entry.end, 'HH:mm'),
       formatHoursAsHHMM((entry.end.getTime() - entry.start.getTime()) / 3600000),
-      entry.projectId ? (projectMap.get(entry.projectId)?.name ?? '') : '',
+      entry.projectId ? (projectMap.get(entry.projectId) ? getProjectDisplayName(projectMap.get(entry.projectId)!) : '') : '',
       entry.title,
     ]);
 
@@ -121,7 +122,7 @@ export class PdfExportAdapter implements ExportPort {
 
       for (const projectId of usedProjectIds) {
         const project = projectMap.get(projectId);
-        const row: (string | number)[] = [project?.name ?? ''];
+        const row: (string | number)[] = [project ? getProjectDisplayName(project) : ''];
         let projectTotal = 0;
         days.forEach((day, i) => {
           const hours = sortedEntries

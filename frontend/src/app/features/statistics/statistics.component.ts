@@ -4,7 +4,7 @@ import {
 import { STORAGE_PORT } from '../../domain/ports/storage.port';
 import { ProjectStore } from '../../state/project.store';
 import { TimeEntry } from '../../domain/models/time-entry.model';
-import { Project } from '../../domain/models/project.model';
+import { Project, getProjectDisplayName } from '../../domain/models/project.model';
 import {
   startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear,
   endOfDay, format, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval,
@@ -235,7 +235,7 @@ export class StatisticsComponent implements OnDestroy {
         const project = projectMap.get(projectId);
         return {
           projectId,
-          name: project?.name ?? 'Ohne Projekt',
+          name: project ? getProjectDisplayName(project) : 'Ohne Projekt',
           color: project?.color ?? '#94a3b8',
           hours,
           percentage: (hours / total) * 100,
@@ -354,7 +354,7 @@ export class StatisticsComponent implements OnDestroy {
     }
 
     const sorted = [...hoursByProject.entries()].sort((a, b) => b[1] - a[1]);
-    const labels = sorted.map(([id]) => projectMap.get(id)?.name ?? 'Ohne Projekt');
+    const labels = sorted.map(([id]) => { const p = projectMap.get(id); return p ? getProjectDisplayName(p) : 'Ohne Projekt'; });
     const data = sorted.map(([, h]) => Math.round(h * 10) / 10);
     const colors = sorted.map(([id]) => projectMap.get(id)?.color ?? '#94a3b8');
 
@@ -417,7 +417,7 @@ export class StatisticsComponent implements OnDestroy {
       });
 
       return {
-        label: project?.name ?? 'Ohne Projekt',
+        label: project ? getProjectDisplayName(project) : 'Ohne Projekt',
         data,
         backgroundColor: type === 'bar' ? color : color + '20',
         borderColor: color,

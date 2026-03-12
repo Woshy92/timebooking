@@ -2,6 +2,7 @@ import { Component, computed, inject, input, output, signal, OnInit } from '@ang
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ProjectStore } from '../../../state/project.store';
 import { TimeEntry, CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../../../domain/models/time-entry.model';
+import { getProjectDisplayName } from '../../../domain/models/project.model';
 import { format } from 'date-fns';
 
 function stripHtml(html: string): string {
@@ -64,19 +65,45 @@ const MAX_VISIBLE_ATTENDEES = 3;
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           />
         </div>
-        <div>
+        <div class="relative">
           <label class="block text-sm font-medium text-gray-700 mb-1">Projekt</label>
-          <select
-            formControlName="projectId"
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+          <button
+            type="button"
+            (click)="projectDropdownOpen.set(!projectDropdownOpen())"
+            class="w-full flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors text-left"
           >
-            <option value="">Kein Projekt</option>
-            @for (project of projectStore.activeProjects(); track project.id) {
-              <option [value]="project.id">
-                {{ project.name }}
-              </option>
+            @if (selectedProject()) {
+              <div class="w-3 h-3 rounded-full flex-shrink-0" [style.background-color]="selectedProject()!.color"></div>
+              <span class="text-gray-900 truncate">{{ getDisplayName(selectedProject()!) }}</span>
+            } @else {
+              <span class="text-gray-400">Projekt wählen</span>
             }
-          </select>
+            <svg class="w-4 h-4 text-gray-400 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </button>
+          @if (projectDropdownOpen()) {
+            <div class="fixed inset-0 z-40" (click)="projectDropdownOpen.set(false)"></div>
+            <div class="absolute z-50 mt-1 w-full bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-48 overflow-y-auto">
+              @for (project of projectStore.activeProjects(); track project.id) {
+                <button
+                  type="button"
+                  (click)="selectProject(project.id)"
+                  class="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-left"
+                  [class.bg-indigo-50]="form.value.projectId === project.id"
+                  [class.font-semibold]="form.value.projectId === project.id"
+                >
+                  <div class="w-3 h-3 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
+                  <span class="text-gray-800 truncate">{{ getDisplayName(project) }}</span>
+                  @if (form.value.projectId === project.id) {
+                    <svg class="w-3.5 h-3.5 text-indigo-500 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                    </svg>
+                  }
+                </button>
+              }
+            </div>
+          }
         </div>
       </div>
 
@@ -187,6 +214,7 @@ export class TimeEntryFormComponent implements OnInit {
   deleteClicked = output<void>();
 
   protected readonly projectStore = inject(ProjectStore);
+  protected readonly getDisplayName = getProjectDisplayName;
   private readonly fb = inject(FormBuilder);
 
   protected readonly descriptionExpanded = signal(false);
@@ -213,6 +241,13 @@ export class TimeEntryFormComponent implements OnInit {
     return this.attendeesExpanded() ? all : all.slice(0, MAX_VISIBLE_ATTENDEES);
   });
 
+  protected readonly projectDropdownOpen = signal(false);
+  protected readonly selectedProjectId = signal<string>('');
+  protected readonly selectedProject = computed(() => {
+    const id = this.selectedProjectId();
+    return this.projectStore.activeProjects().find(p => p.id === id) ?? null;
+  });
+
   form!: FormGroup;
 
   ngOnInit() {
@@ -220,14 +255,25 @@ export class TimeEntryFormComponent implements OnInit {
     const start = entry ? new Date(entry.start) : (this.defaultStart() ?? new Date());
     const end = entry ? new Date(entry.end) : (this.defaultEnd() ?? new Date(start.getTime() + 3600000));
 
+    const defaultProjectId = entry?.projectId
+      || this.projectStore.activeProjects()[0]?.id
+      || '';
+
     this.form = this.fb.group({
       title: [entry?.title ?? '', Validators.required],
       date: [format(start, 'yyyy-MM-dd'), Validators.required],
       startTime: [format(start, 'HH:mm'), Validators.required],
       endTime: [format(end, 'HH:mm'), Validators.required],
-      projectId: [entry?.projectId ?? ''],
+      projectId: [defaultProjectId, Validators.required],
       notes: [entry?.notes ?? ''],
     });
+    this.selectedProjectId.set(defaultProjectId);
+  }
+
+  selectProject(id: string) {
+    this.form.patchValue({ projectId: id });
+    this.selectedProjectId.set(id);
+    this.projectDropdownOpen.set(false);
   }
 
   onSubmit() {
@@ -235,7 +281,7 @@ export class TimeEntryFormComponent implements OnInit {
     const v = this.form.value;
     const start = new Date(`${v.date}T${v.startTime}:00`);
     const end = new Date(`${v.date}T${v.endTime}:00`);
-    const projectId = v.projectId || undefined;
+    const projectId = v.projectId;
 
     const entry = this.entry();
     if (entry) {

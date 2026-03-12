@@ -11,7 +11,7 @@ import { DurationPipe } from '../../../shared/pipes/duration.pipe';
 import { format, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { TimeEntry } from '../../../domain/models/time-entry.model';
-import { Project } from '../../../domain/models/project.model';
+import { Project, getProjectDisplayName } from '../../../domain/models/project.model';
 import { CalendarEvent } from '../../../domain/models/calendar-event.model';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
 import { ClearConfirmPopoverComponent } from '../../../shared/components/clear-confirm-popover/clear-confirm-popover.component';
@@ -178,7 +178,7 @@ const HOUR_HEIGHT = 72;
                   {{ formatTime(getEffectiveStart(entry)) }}–{{ formatTime(getEffectiveEnd(entry)) }} · {{ getDurationMinutes(entry) | duration }}
                 </div>
                 @if (getProject(entry); as p) {
-                  <div class="text-[10px] font-bold mt-auto truncate uppercase tracking-wider" [style.color]="getEntryColor(entry)" style="opacity: 0.5">{{ p.name }}</div>
+                  <div class="text-[10px] font-bold mt-auto truncate uppercase tracking-wider" [style.color]="getEntryColor(entry)" style="opacity: 0.5">{{ getDisplayName(p) }}</div>
                 }
               </div>
               <!-- Top resize handle -->
@@ -660,6 +660,7 @@ export class DayViewComponent {
   }
   getEntryColor(entry: TimeEntry) { return calcEntryColor(entry, this.projectStore.projectMap()); }
   getProject(entry: TimeEntry): Project | null { return calcProject(entry, this.projectStore.projectMap()); }
+  getDisplayName = getProjectDisplayName;
   formatTime = formatTime;
 
   clearView() {

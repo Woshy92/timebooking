@@ -10,7 +10,7 @@ import { VacationStore } from '../../../state/vacation.store';
 import { format, eachDayOfInterval, isSameDay, startOfDay, isWeekend } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { TimeEntry } from '../../../domain/models/time-entry.model';
-import { Project } from '../../../domain/models/project.model';
+import { Project, getProjectDisplayName } from '../../../domain/models/project.model';
 import { CalendarEvent } from '../../../domain/models/calendar-event.model';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
 import { ClearConfirmPopoverComponent } from '../../../shared/components/clear-confirm-popover/clear-confirm-popover.component';
@@ -240,7 +240,7 @@ const HOUR_HEIGHT = 64;
                     {{ formatTime(getEffectiveStart(entry)) }}–{{ formatTime(getEffectiveEnd(entry)) }}
                   </div>
                   @if (getProject(entry); as p) {
-                    <div class="text-[9px] font-semibold mt-auto truncate uppercase tracking-wide flex-shrink overflow-hidden" [style.color]="getEntryColor(entry)" style="opacity: 0.6">{{ p.name }}</div>
+                    <div class="text-[9px] font-semibold mt-auto truncate uppercase tracking-wide flex-shrink overflow-hidden" [style.color]="getEntryColor(entry)" style="opacity: 0.6">{{ getDisplayName(p) }}</div>
                   }
                 </div>
                 <!-- Top resize handle -->
@@ -804,6 +804,7 @@ export class WeekViewComponent {
   getEntryBg(entry: TimeEntry): string { return calcEntryBg(entry, this.projectStore.projectMap()); }
   getEntryTextColor(entry: TimeEntry): string { return calcEntryTextColor(entry, this.projectStore.projectMap()); }
   getProject(entry: TimeEntry): Project | null { return calcProject(entry, this.projectStore.projectMap()); }
+  getDisplayName = getProjectDisplayName;
   formatTime = formatTime;
 
   toggleFitToScreen() {
@@ -839,7 +840,7 @@ export class WeekViewComponent {
         result.push({ pid, name: 'Ohne Projekt', color: '#9CA3AF', hours });
       } else {
         const p = projectMap.get(pid);
-        if (p) result.push({ pid, name: p.name, color: p.color, hours });
+        if (p) result.push({ pid, name: getProjectDisplayName(p), color: p.color, hours });
       }
     }
     result.sort((a, b) => b.hours - a.hours);
@@ -864,7 +865,7 @@ export class WeekViewComponent {
       const summary = [...hoursByProject.entries()]
         .map(([pid, hours]) => {
           const p = pid === '__none__' ? null : projectMap.get(pid);
-          return { pid, name: p?.name ?? 'Ohne Projekt', color: p?.color ?? '#9CA3AF', hours };
+          return { pid, name: p ? getProjectDisplayName(p) : 'Ohne Projekt', color: p?.color ?? '#9CA3AF', hours };
         })
         .sort((a, b) => b.hours - a.hours);
       result.set(day.date.toISOString(), summary);
