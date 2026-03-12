@@ -102,6 +102,13 @@ export const TimeEntryStore = signalStore(
           }),
         });
       },
+      undismissGoogleEvent(eventId: string) {
+        storage.undismissGoogleEvent(eventId).subscribe({
+          next: () => patchState(store, {
+            dismissedGoogleEventIds: store.dismissedGoogleEventIds().filter(id => id !== eventId),
+          }),
+        });
+      },
       clearDismissedGoogleEventIds() {
         storage.clearDismissedGoogleEventIds().subscribe({
           next: () => patchState(store, { dismissedGoogleEventIds: [] }),

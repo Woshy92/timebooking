@@ -78,6 +78,12 @@ export class LocalStorageAdapter implements StoragePort {
     return of(void 0);
   }
 
+  undismissGoogleEvent(eventId: string): Observable<void> {
+    const dismissed = this.readAll<string>(DISMISSED_GOOGLE_KEY);
+    this.persist(DISMISSED_GOOGLE_KEY, dismissed.filter(id => id !== eventId));
+    return of(void 0);
+  }
+
   clearDismissedGoogleEventIds(): Observable<void> {
     localStorage.removeItem(DISMISSED_GOOGLE_KEY);
     return of(void 0);

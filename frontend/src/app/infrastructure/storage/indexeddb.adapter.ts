@@ -135,6 +135,10 @@ export class IndexedDbAdapter implements StoragePort {
     return from(this.tx(STORES.dismissed, 'readwrite', s => s.put({ eventId })).then(() => {}));
   }
 
+  undismissGoogleEvent(eventId: string): Observable<void> {
+    return from(this.tx(STORES.dismissed, 'readwrite', s => s.delete(eventId)).then(() => {}));
+  }
+
   clearDismissedGoogleEventIds(): Observable<void> {
     return from(this.tx(STORES.dismissed, 'readwrite', s => s.clear()).then(() => {}));
   }

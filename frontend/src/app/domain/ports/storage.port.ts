@@ -12,6 +12,7 @@ export interface StoragePort {
 
   getDismissedGoogleEventIds(): Observable<string[]>;
   dismissGoogleEvent(eventId: string): Observable<void>;
+  undismissGoogleEvent(eventId: string): Observable<void>;
   clearDismissedGoogleEventIds(): Observable<void>;
 
   getRecurringProjectMappings(): Observable<Map<string, string>>;

@@ -376,9 +376,7 @@ export class ImportWizardComponent {
         this.importedCount.update(c => c - 1);
       }
     } else if (lastAction.type === 'dismiss') {
-      // Can't easily un-dismiss via store, but clearing and re-loading works
-      // For now, the dismissed ID stays but the event won't show in the wizard anyway
-      // since visibleEvents filters them — we just go back to the previous index
+      this.timeEntryStore.undismissGoogleEvent(lastAction.eventId);
     }
 
     this.currentIndex.update(i => i - 1);
