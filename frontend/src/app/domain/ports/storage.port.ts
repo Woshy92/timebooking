@@ -2,6 +2,7 @@ import { InjectionToken } from '@angular/core';
 import { Observable } from 'rxjs';
 import { TimeEntry, CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../models/time-entry.model';
 import { Project, CreateProjectDTO } from '../models/project.model';
+import { RecurringProjectMapping } from '../models/recurring-mapping.model';
 
 export interface StoragePort {
   getEntries(from: Date, to: Date): Observable<TimeEntry[]>;
@@ -15,8 +16,8 @@ export interface StoragePort {
   undismissGoogleEvent(eventId: string): Observable<void>;
   clearDismissedGoogleEventIds(): Observable<void>;
 
-  getRecurringProjectMappings(): Observable<Map<string, string>>;
-  setRecurringProjectMapping(recurringEventId: string, projectId: string): Observable<void>;
+  getRecurringProjectMappings(): Observable<RecurringProjectMapping[]>;
+  setRecurringProjectMapping(recurringEventId: string, projectId: string, eventTitle: string): Observable<void>;
   deleteRecurringProjectMapping(recurringEventId: string): Observable<void>;
 
   getProjects(): Observable<Project[]>;

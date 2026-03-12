@@ -11,7 +11,7 @@ export class CalendarSyncService {
   importEvent(event: CalendarEvent): void {
     // Recurring mapping takes priority over default project
     const recurringProjectId = event.recurringEventId
-      ? this.timeEntryStore.recurringProjectMappings().get(event.recurringEventId)
+      ? this.timeEntryStore.recurringMappingMap().get(event.recurringEventId)
       : undefined;
 
     this.timeEntryStore.addEntry({

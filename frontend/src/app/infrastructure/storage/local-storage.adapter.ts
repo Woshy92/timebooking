@@ -3,6 +3,7 @@ import { Observable, of, throwError } from 'rxjs';
 import { StoragePort } from '../../domain/ports/storage.port';
 import { TimeEntry, CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../../domain/models/time-entry.model';
 import { Project, CreateProjectDTO } from '../../domain/models/project.model';
+import { RecurringProjectMapping } from '../../domain/models/recurring-mapping.model';
 
 const ENTRIES_KEY = 'tb:entries';
 const PROJECTS_KEY = 'tb:projects';
@@ -89,23 +90,37 @@ export class LocalStorageAdapter implements StoragePort {
     return of(void 0);
   }
 
-  getRecurringProjectMappings(): Observable<Map<string, string>> {
-    const obj: Record<string, string> = safeParse(localStorage.getItem(RECURRING_MAPPINGS_KEY), {});
-    return of(new Map(Object.entries(obj)));
+  getRecurringProjectMappings(): Observable<RecurringProjectMapping[]> {
+    const raw = safeParse<Record<string, string> | RecurringProjectMapping[]>(localStorage.getItem(RECURRING_MAPPINGS_KEY), {});
+    // Backward compat: old format was { recurringEventId: projectId }
+    if (Array.isArray(raw)) {
+      return of(raw.map(m => ({ ...m, eventTitle: m.eventTitle ?? '' })));
+    }
+    return of(Object.entries(raw).map(([recurringEventId, projectId]) => ({ recurringEventId, projectId, eventTitle: '' })));
   }
 
-  setRecurringProjectMapping(recurringEventId: string, projectId: string): Observable<void> {
-    const obj: Record<string, string> = safeParse(localStorage.getItem(RECURRING_MAPPINGS_KEY), {});
-    obj[recurringEventId] = projectId;
-    localStorage.setItem(RECURRING_MAPPINGS_KEY, JSON.stringify(obj));
+  setRecurringProjectMapping(recurringEventId: string, projectId: string, eventTitle: string): Observable<void> {
+    const mappings = this.readMappingsArray();
+    const idx = mappings.findIndex(m => m.recurringEventId === recurringEventId);
+    if (idx >= 0) {
+      mappings[idx] = { recurringEventId, projectId, eventTitle };
+    } else {
+      mappings.push({ recurringEventId, projectId, eventTitle });
+    }
+    localStorage.setItem(RECURRING_MAPPINGS_KEY, JSON.stringify(mappings));
     return of(void 0);
   }
 
   deleteRecurringProjectMapping(recurringEventId: string): Observable<void> {
-    const obj: Record<string, string> = safeParse(localStorage.getItem(RECURRING_MAPPINGS_KEY), {});
-    delete obj[recurringEventId];
-    localStorage.setItem(RECURRING_MAPPINGS_KEY, JSON.stringify(obj));
+    const mappings = this.readMappingsArray().filter(m => m.recurringEventId !== recurringEventId);
+    localStorage.setItem(RECURRING_MAPPINGS_KEY, JSON.stringify(mappings));
     return of(void 0);
+  }
+
+  private readMappingsArray(): RecurringProjectMapping[] {
+    const raw = safeParse<Record<string, string> | RecurringProjectMapping[]>(localStorage.getItem(RECURRING_MAPPINGS_KEY), {});
+    if (Array.isArray(raw)) return raw.map(m => ({ ...m, eventTitle: m.eventTitle ?? '' }));
+    return Object.entries(raw).map(([recurringEventId, projectId]) => ({ recurringEventId, projectId, eventTitle: '' }));
   }
 
   getProjects(): Observable<Project[]> {

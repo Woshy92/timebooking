@@ -1,6 +1,7 @@
 import { computed, inject } from '@angular/core';
 import { signalStore, withState, withMethods, withComputed, withHooks, patchState } from '@ngrx/signals';
 import { TimeEntry, CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../domain/models/time-entry.model';
+import { RecurringProjectMapping } from '../domain/models/recurring-mapping.model';
 import { STORAGE_PORT } from '../domain/ports/storage.port';
 import { computeGapFills } from '../shared/utils/gap-filler';
 
@@ -9,7 +10,7 @@ interface TimeEntryState {
   loading: boolean;
   error: string | null;
   dismissedGoogleEventIds: string[];
-  recurringProjectMappings: Map<string, string>;
+  recurringProjectMappings: RecurringProjectMapping[];
 }
 
 export const TimeEntryStore = signalStore(
@@ -19,9 +20,9 @@ export const TimeEntryStore = signalStore(
     loading: false,
     error: null,
     dismissedGoogleEventIds: [],
-    recurringProjectMappings: new Map<string, string>(),
+    recurringProjectMappings: [] as RecurringProjectMapping[],
   }),
-  withComputed(({ entries }) => ({
+  withComputed(({ entries, recurringProjectMappings }) => ({
     entriesByProject: computed(() => {
       const map = new Map<string, TimeEntry[]>();
       for (const entry of entries()) {
@@ -34,6 +35,9 @@ export const TimeEntryStore = signalStore(
     }),
     totalHours: computed(() =>
       entries().filter(e => !e.pause).reduce((sum, e) => sum + (e.end.getTime() - e.start.getTime()) / 3600000, 0)
+    ),
+    recurringMappingMap: computed(() =>
+      new Map(recurringProjectMappings().map(m => [m.recurringEventId, m.projectId]))
     ),
   })),
   withMethods((store) => {
@@ -128,21 +132,21 @@ export const TimeEntryStore = signalStore(
           next: (mappings) => patchState(store, { recurringProjectMappings: mappings }),
         });
       },
-      setRecurringProjectMapping(recurringEventId: string, projectId: string) {
-        storage.setRecurringProjectMapping(recurringEventId, projectId).subscribe({
+      setRecurringProjectMapping(recurringEventId: string, projectId: string, eventTitle: string) {
+        storage.setRecurringProjectMapping(recurringEventId, projectId, eventTitle).subscribe({
           next: () => {
-            const updated = new Map(store.recurringProjectMappings());
-            updated.set(recurringEventId, projectId);
-            patchState(store, { recurringProjectMappings: updated });
+            const existing = store.recurringProjectMappings();
+            const filtered = existing.filter(m => m.recurringEventId !== recurringEventId);
+            patchState(store, { recurringProjectMappings: [...filtered, { recurringEventId, projectId, eventTitle }] });
           },
         });
       },
       deleteRecurringProjectMapping(recurringEventId: string) {
         storage.deleteRecurringProjectMapping(recurringEventId).subscribe({
           next: () => {
-            const updated = new Map(store.recurringProjectMappings());
-            updated.delete(recurringEventId);
-            patchState(store, { recurringProjectMappings: updated });
+            patchState(store, {
+              recurringProjectMappings: store.recurringProjectMappings().filter(m => m.recurringEventId !== recurringEventId),
+            });
           },
         });
       },

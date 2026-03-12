@@ -238,7 +238,7 @@ export class ImportWizardComponent {
 
   /** Events that need manual project assignment */
   readonly manualEvents = computed(() => {
-    const mappings = this.timeEntryStore.recurringProjectMappings();
+    const mappings = this.timeEntryStore.recurringMappingMap();
     return this.visibleEvents().filter(ev =>
       !ev.recurringEventId || !mappings.has(ev.recurringEventId)
     );
@@ -291,7 +291,7 @@ export class ImportWizardComponent {
 
   private startImport() {
     this.initialized = true;
-    const mappings = this.timeEntryStore.recurringProjectMappings();
+    const mappings = this.timeEntryStore.recurringMappingMap();
     const autoEvents = this.visibleEvents().filter(ev =>
       ev.recurringEventId && mappings.has(ev.recurringEventId)
     );
@@ -313,7 +313,7 @@ export class ImportWizardComponent {
     if (!ev) return;
 
     if (ev.recurringEventId && this.applyToSeries() && projectId) {
-      this.timeEntryStore.setRecurringProjectMapping(ev.recurringEventId, projectId);
+      this.timeEntryStore.setRecurringProjectMapping(ev.recurringEventId, projectId, ev.title);
     }
 
     this.timeEntryStore.addEntry({

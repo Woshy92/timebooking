@@ -25,4 +25,5 @@ export interface RecurringConfirmState {
   projectId: string;
   projectName: string;
   projectColor: string;
+  eventTitle: string;
 }

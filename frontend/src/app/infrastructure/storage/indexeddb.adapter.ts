@@ -3,6 +3,7 @@ import { Observable, from } from 'rxjs';
 import { StoragePort } from '../../domain/ports/storage.port';
 import { TimeEntry, CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../../domain/models/time-entry.model';
 import { Project, CreateProjectDTO } from '../../domain/models/project.model';
+import { RecurringProjectMapping } from '../../domain/models/recurring-mapping.model';
 
 const DB_NAME = 'timebooking';
 const DB_VERSION = 2;
@@ -170,16 +171,16 @@ export class IndexedDbAdapter implements StoragePort {
 
   // ─── Recurring Project Mappings ───────────────────────
 
-  getRecurringProjectMappings(): Observable<Map<string, string>> {
+  getRecurringProjectMappings(): Observable<RecurringProjectMapping[]> {
     return from(
-      this.txAll<{ recurringEventId: string; projectId: string }>(STORES.recurringMappings, s => s.getAll())
-        .then(items => new Map(items.map(i => [i.recurringEventId, i.projectId])))
+      this.txAll<RecurringProjectMapping>(STORES.recurringMappings, s => s.getAll())
+        .then(items => items.map(i => ({ recurringEventId: i.recurringEventId, projectId: i.projectId, eventTitle: i.eventTitle ?? '' })))
     );
   }
 
-  setRecurringProjectMapping(recurringEventId: string, projectId: string): Observable<void> {
+  setRecurringProjectMapping(recurringEventId: string, projectId: string, eventTitle: string): Observable<void> {
     return from(
-      this.tx(STORES.recurringMappings, 'readwrite', s => s.put({ recurringEventId, projectId })).then(() => {})
+      this.tx(STORES.recurringMappings, 'readwrite', s => s.put({ recurringEventId, projectId, eventTitle })).then(() => {})
     );
   }
 

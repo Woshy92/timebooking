@@ -257,6 +257,7 @@ export class CalendarInteractionService {
           projectId,
           projectName: project ? getProjectDisplayName(project) : projectId,
           projectColor: project?.color ?? '#6366F1',
+          eventTitle: recurringEntry.title,
         });
       }
     }
@@ -266,7 +267,7 @@ export class CalendarInteractionService {
   confirmRecurringProject() {
     const rc = this.recurringConfirm();
     if (rc) {
-      this.timeEntryStore.setRecurringProjectMapping(rc.recurringEventId, rc.projectId);
+      this.timeEntryStore.setRecurringProjectMapping(rc.recurringEventId, rc.projectId, rc.eventTitle);
     }
     this.recurringConfirm.set(null);
   }
