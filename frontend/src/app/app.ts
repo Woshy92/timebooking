@@ -79,7 +79,7 @@ import { environment } from '../environments/environment';
           </div>
 
           <!-- Total hours badge -->
-          <div class="px-2.5 py-1 bg-gray-800 rounded-md text-xs font-medium text-gray-400 tabular-nums">
+          <div class="px-2.5 py-1.5 bg-gray-800 rounded-md text-xs font-medium text-gray-400 tabular-nums">
             {{ timeEntryStore.totalHours().toFixed(1) }}h
           </div>
 
@@ -117,7 +117,7 @@ import { environment } from '../environments/environment';
         }
 
         <!-- Google Calendar status -->
-        <div class="relative flex items-center">
+        <div class="relative flex items-center gap-2">
           @if (calendarStore.authenticated()) {
             <button
               (click)="refreshCalendar()"
