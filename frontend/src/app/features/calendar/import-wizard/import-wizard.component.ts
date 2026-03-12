@@ -1,4 +1,4 @@
-import { Component, inject, output, signal, computed } from '@angular/core';
+import { Component, inject, output, signal, computed, effect } from '@angular/core';
 import { TimeEntryStore } from '../../../state/time-entry.store';
 import { ProjectStore } from '../../../state/project.store';
 import { CalendarStore } from '../../../state/calendar.store';
@@ -11,7 +11,7 @@ import { formatTime } from '../../../shared/utils/time-helpers';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
-type WizardStep = 'assign' | 'gaps' | 'done';
+type WizardStep = 'loading' | 'assign' | 'gaps' | 'done';
 type HistoryAction = { type: 'import'; eventId: string; entryId?: string } | { type: 'dismiss'; eventId: string } | { type: 'skip' };
 
 @Component({
@@ -21,6 +21,15 @@ type HistoryAction = { type: 'import'; eventId: string; entryId?: string } | { t
   template: `
     <app-modal [title]="modalTitle()" maxWidth="560px" (closed)="closed.emit()">
       @switch (step()) {
+        @case ('loading') {
+          <div class="flex flex-col items-center gap-3 py-8">
+            <svg class="w-6 h-6 text-indigo-500 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <div class="text-sm text-gray-500">Google Kalender wird synchronisiert...</div>
+          </div>
+        }
         @case ('assign') {
           @if (currentEvent(); as ev) {
             <div class="space-y-3">
@@ -198,7 +207,7 @@ export class ImportWizardComponent {
 
   step = signal<WizardStep>('assign');
   currentIndex = signal(0);
-  applyToSeries = signal(false);
+  applyToSeries = signal(true);
   importedCount = signal(0);
   autoImportedCount = signal(0);
   gapsFilled = signal(false);
@@ -243,6 +252,7 @@ export class ImportWizardComponent {
 
   readonly modalTitle = computed(() => {
     switch (this.step()) {
+      case 'loading': return 'Google Kalender';
       case 'assign': return 'Google Termine importieren';
       case 'gaps': return 'Lücken füllen?';
       case 'done': return 'Import abgeschlossen';
@@ -256,22 +266,46 @@ export class ImportWizardComponent {
     return format(date, 'EEEE, d. MMMM', { locale: de });
   }
 
+  private initialized = false;
+
   constructor() {
     afterInit(() => {
-      const mappings = this.timeEntryStore.recurringProjectMappings();
-      const autoEvents = this.visibleEvents().filter(ev =>
-        ev.recurringEventId && mappings.has(ev.recurringEventId)
-      );
-      for (const ev of autoEvents) {
-        this.calendarSyncService.importEvent(ev);
-      }
-      this.autoImportedCount.set(autoEvents.length);
-      this.importedCount.set(autoEvents.length);
-
-      if (this.manualEvents().length === 0) {
-        this.step.set(this.importedCount() > 0 ? 'gaps' : 'done');
+      // If no events loaded yet, trigger a sync first
+      if (this.calendarStore.events().length === 0 && this.calendarStore.authenticated()) {
+        this.step.set('loading');
+        this.timeEntryStore.clearDismissedGoogleEventIds();
+        this.calendarStore.fetchEvents(this.uiStore.weekStart(), this.uiStore.weekEnd());
+      } else {
+        this.startImport();
       }
     });
+
+    // Watch for loading to finish, then start import
+    effect(() => {
+      const loading = this.calendarStore.loading();
+      if (!loading && this.step() === 'loading' && !this.initialized) {
+        this.startImport();
+      }
+    });
+  }
+
+  private startImport() {
+    this.initialized = true;
+    const mappings = this.timeEntryStore.recurringProjectMappings();
+    const autoEvents = this.visibleEvents().filter(ev =>
+      ev.recurringEventId && mappings.has(ev.recurringEventId)
+    );
+    for (const ev of autoEvents) {
+      this.calendarSyncService.importEvent(ev);
+    }
+    this.autoImportedCount.set(autoEvents.length);
+    this.importedCount.set(autoEvents.length);
+
+    if (this.manualEvents().length === 0) {
+      this.step.set(this.importedCount() > 0 ? 'gaps' : 'done');
+    } else {
+      this.step.set('assign');
+    }
   }
 
   importWithProject(projectId: string) {
@@ -349,7 +383,7 @@ export class ImportWizardComponent {
 
     this.currentIndex.update(i => i - 1);
     this.projectFilter.set('');
-    this.applyToSeries.set(false);
+    this.applyToSeries.set(true);
   }
 
   fillGaps() {
@@ -365,7 +399,7 @@ export class ImportWizardComponent {
     } else {
       this.currentIndex.set(nextIndex);
       this.projectFilter.set('');
-      this.applyToSeries.set(false);
+      this.applyToSeries.set(true);
     }
   }
 }
