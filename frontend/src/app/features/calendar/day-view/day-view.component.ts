@@ -1,4 +1,4 @@
-import { Component, inject, computed, ElementRef, viewChild, afterNextRender, HostListener } from '@angular/core';
+import { Component, inject, computed, signal, ElementRef, viewChild, afterNextRender, HostListener } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TimeEntryStore } from '../../../state/time-entry.store';
 import { ProjectStore } from '../../../state/project.store';
@@ -383,11 +383,14 @@ export class DayViewComponent {
     return `${formatTime(entry.start)}–${formatTime(entry.end)}`;
   });
 
+  private readonly tick = signal(0);
+
   constructor() {
     afterNextRender(() => {
       const container = this.scrollContainer()?.nativeElement;
       const scrollTo = (8 - this.viewStart()) * HOUR_HEIGHT;
       if (container && scrollTo > 0) container.scrollTop = scrollTo;
+      setInterval(() => this.tick.update(t => t + 1), 60_000);
     });
   }
 
@@ -400,6 +403,7 @@ export class DayViewComponent {
   readonly isActiveToday = computed(() => isSameDay(this.ui.activeDate(), new Date()));
   readonly isVacation = computed(() => this.vacationStore.isVacation(this.ui.activeDate()));
   readonly nowPosition = computed(() => {
+    this.tick(); // reactive dependency for periodic updates
     const now = new Date();
     return (now.getHours() + now.getMinutes() / 60 - this.viewStart()) * HOUR_HEIGHT;
   });
