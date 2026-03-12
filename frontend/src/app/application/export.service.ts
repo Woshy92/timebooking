@@ -39,7 +39,7 @@ export class ExportService {
       a.href = url;
       a.download = `zeiterfassung.${extension}`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
     });
   }
 
