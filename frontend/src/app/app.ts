@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, HostListener, inject, signal } from '@angular/core';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map } from 'rxjs';
@@ -234,6 +234,26 @@ export class App {
     ),
     { initialValue: true },
   );
+
+  @HostListener('document:keydown', ['$event'])
+  onKeydown(event: KeyboardEvent) {
+    const tag = (event.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+    switch (event.key.toLowerCase()) {
+      case 'n':
+        event.preventDefault();
+        this.ui.openNewEntryModal();
+        break;
+      case 'w':
+        if (this.calendarStore.authenticated()) {
+          event.preventDefault();
+          this.showImportWizard.set(true);
+        }
+        break;
+    }
+  }
 
   readonly googleEnabled = environment.googleCalendarEnabled;
   showGoogleTooltip = signal(false);
