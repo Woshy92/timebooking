@@ -1,10 +1,11 @@
-import { Component, inject, input, output, signal, computed } from '@angular/core';
+import { Component, inject, output, signal, computed } from '@angular/core';
 import { TimeEntryStore } from '../../../state/time-entry.store';
 import { ProjectStore } from '../../../state/project.store';
+import { CalendarStore } from '../../../state/calendar.store';
 import { UiStore } from '../../../state/ui.store';
 import { CalendarSyncService } from '../../../application/calendar-sync.service';
 import { CalendarEvent } from '../../../domain/models/calendar-event.model';
-import { Project, getProjectDisplayName } from '../../../domain/models/project.model';
+import { getProjectDisplayName } from '../../../domain/models/project.model';
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
 import { formatTime } from '../../../shared/utils/time-helpers';
 import { format } from 'date-fns';
@@ -25,7 +26,9 @@ type WizardStep = 'assign' | 'gaps' | 'done';
               <!-- Progress -->
               <div class="flex items-center justify-between text-xs text-gray-400">
                 <span>Termin {{ currentIndex() + 1 }} von {{ manualEvents().length }}</span>
-                <span>{{ autoImportedCount() }} automatisch importiert</span>
+                @if (autoImportedCount() > 0) {
+                  <span>{{ autoImportedCount() }} automatisch importiert</span>
+                }
               </div>
               <div class="h-1 bg-gray-100 rounded-full overflow-hidden">
                 <div class="h-full bg-indigo-500 rounded-full transition-all duration-300"
@@ -100,10 +103,11 @@ type WizardStep = 'assign' | 'gaps' | 'done';
                   Ohne Projekt
                 </button>
                 <button
-                  class="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-                  (click)="skipCurrent()"
+                  class="px-4 py-2 rounded-lg text-sm font-medium text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                  (click)="dismissCurrent()"
+                  title="Termin ausblenden"
                 >
-                  Überspringen
+                  Löschen
                 </button>
               </div>
             </div>
@@ -168,10 +172,10 @@ type WizardStep = 'assign' | 'gaps' | 'done';
 export class ImportWizardComponent {
   private readonly timeEntryStore = inject(TimeEntryStore);
   private readonly projectStore = inject(ProjectStore);
+  private readonly calendarStore = inject(CalendarStore);
   private readonly uiStore = inject(UiStore);
   private readonly calendarSyncService = inject(CalendarSyncService);
 
-  events = input.required<CalendarEvent[]>();
   closed = output<void>();
 
   step = signal<WizardStep>('assign');
@@ -184,9 +188,20 @@ export class ImportWizardComponent {
 
   readonly activeProjects = computed(() => this.projectStore.activeProjects());
 
+  /** All visible Google events (not yet imported, not dismissed) */
+  private readonly visibleEvents = computed(() => {
+    const allEvents = this.calendarStore.events();
+    const bookedIds = new Set(
+      this.timeEntryStore.entries().filter(e => e.googleEventId).map(e => e.googleEventId)
+    );
+    const dismissedIds = new Set(this.timeEntryStore.dismissedGoogleEventIds());
+    return allEvents.filter(e => !bookedIds.has(e.id) && !dismissedIds.has(e.id));
+  });
+
+  /** Events that need manual project assignment */
   readonly manualEvents = computed(() => {
     const mappings = this.timeEntryStore.recurringProjectMappings();
-    return this.events().filter(ev =>
+    return this.visibleEvents().filter(ev =>
       !ev.recurringEventId || !mappings.has(ev.recurringEventId)
     );
   });
@@ -216,7 +231,7 @@ export class ImportWizardComponent {
     // Auto-import recurring events with known mappings
     afterInit(() => {
       const mappings = this.timeEntryStore.recurringProjectMappings();
-      const autoEvents = this.events().filter(ev =>
+      const autoEvents = this.visibleEvents().filter(ev =>
         ev.recurringEventId && mappings.has(ev.recurringEventId)
       );
       for (const ev of autoEvents) {
@@ -284,6 +299,13 @@ export class ImportWizardComponent {
     this.advance();
   }
 
+  dismissCurrent() {
+    const ev = this.currentEvent();
+    if (!ev) return;
+    this.timeEntryStore.dismissGoogleEvent(ev.id);
+    this.advance();
+  }
+
   skipCurrent() {
     this.advance();
   }
@@ -301,12 +323,10 @@ export class ImportWizardComponent {
     } else {
       this.currentIndex.set(nextIndex);
       this.applyToSeries.set(false);
-      // Keep the selected project for next event (convenient for batch assignment)
     }
   }
 }
 
-// Simple afterInit helper — runs the callback in a microtask after construction
 function afterInit(fn: () => void) {
   queueMicrotask(fn);
 }

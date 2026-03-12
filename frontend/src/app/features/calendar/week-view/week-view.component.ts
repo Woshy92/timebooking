@@ -5,7 +5,6 @@ import { ProjectStore } from '../../../state/project.store';
 import { CalendarStore } from '../../../state/calendar.store';
 import { UiStore } from '../../../state/ui.store';
 import { CalendarSyncService } from '../../../application/calendar-sync.service';
-import { ImportWizardComponent } from '../import-wizard/import-wizard.component';
 import { UndoStore } from '../../../state/undo.store';
 import { VacationStore } from '../../../state/vacation.store';
 import { format, eachDayOfInterval, isSameDay, startOfDay, isWeekend } from 'date-fns';
@@ -28,7 +27,7 @@ const HOUR_HEIGHT = 64;
 @Component({
   selector: 'app-week-view',
   standalone: true,
-  imports: [FormsModule, ProjectPillsBarComponent, ClearConfirmPopoverComponent, ProjectPopoverComponent, ImportWizardComponent],
+  imports: [FormsModule, ProjectPillsBarComponent, ClearConfirmPopoverComponent, ProjectPopoverComponent],
   template: `
     <div class="flex flex-col h-full bg-white">
       <!-- Default project bar -->
@@ -59,17 +58,6 @@ const HOUR_HEIGHT = 64;
             </svg>
           </button>
         </div>
-        @if (weekGoogleEventCount() > 0) {
-          <button
-            class="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition-colors"
-            title="Alle Google-Termine importieren"
-            (click)="openImportWizard()"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-          </button>
-        }
         <app-clear-confirm-popover
           [entryCount]="weekEntryCount()"
           [googleEventCount]="weekGoogleEventCount()"
@@ -456,13 +444,6 @@ const HOUR_HEIGHT = 64;
       </div>
     }
 
-    <!-- Import Wizard -->
-    @if (showImportWizard()) {
-      <app-import-wizard
-        [events]="wizardEvents()"
-        (closed)="closeImportWizard()"
-      />
-    }
   `,
   styles: [`:host { display: flex; flex-direction: column; height: 100%; }`],
 })
@@ -488,12 +469,6 @@ export class WeekViewComponent {
   popover = signal<PopoverState | null>(null);
   selectedEntryIds = signal<Set<string>>(new Set());
   recurringConfirm = signal<{ recurringEventId: string; projectId: string; projectName: string; projectColor: string } | null>(null);
-  showImportWizard = signal(false);
-
-  readonly wizardEvents = computed(() =>
-    this.days().flatMap(day => day.googleEvents)
-  );
-
   readonly hourHeight = computed(() => HOUR_HEIGHT);
 
   readonly defaultProject = computed(() => {
@@ -751,16 +726,6 @@ export class WeekViewComponent {
     event.stopPropagation();
     this.dismissEmptyDraft();
     this.timeEntryStore.dismissGoogleEvent(eventId);
-  }
-
-  openImportWizard() {
-    this.dismissEmptyDraft();
-    this.closePopover();
-    this.showImportWizard.set(true);
-  }
-
-  closeImportWizard() {
-    this.showImportWizard.set(false);
   }
 
   // ─── Gap suggestions ──────────────────────────────────

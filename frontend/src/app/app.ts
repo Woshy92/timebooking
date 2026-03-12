@@ -10,6 +10,7 @@ import { TimeEntryModalComponent } from './features/time-entry/time-entry-modal/
 import { ExportPanelComponent } from './features/export/export-panel/export-panel.component';
 import { ErrorToastComponent } from './shared/components/error-toast/error-toast.component';
 import { UndoToastComponent } from './shared/components/undo-toast/undo-toast.component';
+import { ImportWizardComponent } from './features/calendar/import-wizard/import-wizard.component';
 import { environment } from '../environments/environment';
 
 @Component({
@@ -17,7 +18,7 @@ import { environment } from '../environments/environment';
   standalone: true,
   imports: [
     RouterOutlet, RouterLink, RouterLinkActive,
-    WeekNavigatorComponent, TimeEntryModalComponent, ExportPanelComponent, ErrorToastComponent, UndoToastComponent,
+    WeekNavigatorComponent, TimeEntryModalComponent, ExportPanelComponent, ErrorToastComponent, UndoToastComponent, ImportWizardComponent,
   ],
   template: `
     <!-- Top navigation bar -->
@@ -129,6 +130,16 @@ import { environment } from '../environments/environment';
               </svg>
               Sync
             </button>
+            <button
+              (click)="showImportWizard.set(true)"
+              class="flex items-center gap-1 px-2.5 py-1.5 bg-gray-800 rounded-md text-xs font-medium text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+              title="Termine per Wizard importieren"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Wizard
+            </button>
           }
           <button
             (click)="onGoogleConnect()"
@@ -193,6 +204,9 @@ import { environment } from '../environments/environment';
     <app-export-panel />
     <app-error-toast />
     <app-undo-toast />
+    @if (showImportWizard()) {
+      <app-import-wizard (closed)="showImportWizard.set(false)" />
+    }
   `,
   styles: [`
     :host {
@@ -219,6 +233,7 @@ export class App {
 
   readonly googleEnabled = environment.googleCalendarEnabled;
   showGoogleTooltip = signal(false);
+  showImportWizard = signal(false);
   backendUnavailable = signal(!environment.googleCalendarEnabled);
 
   constructor() {
