@@ -63,7 +63,7 @@ export const UiStore = signalStore(
     selectEntry(id: string | null) {
       patchState(store, { selectedEntryId: id, isEntryModalOpen: id !== null });
     },
-    openNewEntryModal(start?: Date, end?: Date) {
+    openNewEntryModal() {
       patchState(store, { selectedEntryId: null, isEntryModalOpen: true });
     },
     closeEntryModal() {
