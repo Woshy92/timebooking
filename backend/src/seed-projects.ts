@@ -1,29 +1,39 @@
 import { initializeDatabase, getDb } from './services/database.service.js';
 
-const projects = [
-  { name: 'Admin & Orga', rate: '', color: '#6366f1' },
-  { name: 'KI-Coding Training', rate: '', color: '#8b5cf6' },
-  { name: 'Erweiterung des Zeugnisgenerators', rate: 'AIP-54', color: '#a855f7' },
-  { name: 'Vorlage für Confluence - Selbstpräsentation', rate: 'AIP-9', color: '#d946ef' },
-  { name: 'Personas für Homepage', rate: 'AIP-44', color: '#ec4899' },
-  { name: 'Internes RAG', rate: 'AIP-7', color: '#f43f5e' },
-  { name: 'Schulung: Management-Kommunikation', rate: 'AIP-33', color: '#ef4444' },
-  { name: 'Schulung: GenAI-Basics für anwendende Berater', rate: 'AIP-50', color: '#f97316' },
-  { name: 'Automatisierter Zugriff auf Kundenauftragsdaten aus Collmex', rate: 'AIP-52', color: '#f59e0b' },
-  { name: 'Weiterentwicklung und Wissensverankerung CokeConverter', rate: 'AIP-49', color: '#eab308' },
-  { name: 'genAI-Fitness für atra.consulting – Kompetenzaufbau und Positionierung', rate: 'AIP-57', color: '#84cc16' },
-  { name: 'Automatisierte Standardisierung von Beraterprofilen ("Profilgenerator")', rate: 'AIP-47', color: '#22c55e' },
-  { name: 'Zeugnisgenerator 1.0', rate: 'AIP-6', color: '#10b981' },
-  { name: 'IT-Basic-Schulung', rate: 'AIP-8', color: '#14b8a6' },
-  { name: 'Unsere Positionierung als atra.consulting', rate: 'AIP-42', color: '#06b6d4' },
-  { name: 'Schnittstelle DATEV - Collmex für Gehaltsbuchungen', rate: 'AIP-48', color: '#0ea5e9' },
-  { name: 'Positionierung zur Barrierefreiheit', rate: 'AIP-10', color: '#3b82f6' },
-  { name: 'Homepage 3.0', rate: 'AIP-1', color: '#2563eb' },
-  { name: 'Einführung Wiki und Aufgaben-Management', rate: '', color: '#4f46e5' },
-  { name: 'Vertrieb', rate: '', color: '#7c3aed' },
-  { name: 'Projektbegleitung für die KI Werkstatt', rate: '', color: '#0d9488' },
-  { name: 'PoC VERA (Justizministerium BW)', rate: '', color: '#059669' },
-  { name: 'Allianz: Tribe NOVA Leben/FirmenOnline Los 3', rate: '', color: '#b45309' },
+// Each entry: [name, rate, color]
+// Same base project → same color
+const projects: [string, string, string][] = [
+  // Admin & Orga — 7 Sätze (alle gleiche Farbe)
+  ['Admin & Orga', 'Intern (ohne Berechnung)', '#6366f1'],
+  ['Admin & Orga', 'Reisezeit (ohne Berechnung)', '#6366f1'],
+  ['Admin & Orga', 'Kundenbetreuung (ohne Berechnung)', '#6366f1'],
+  ['Admin & Orga', 'Beraterbetreuung (ohne Berechnung)', '#6366f1'],
+  ['Admin & Orga', 'Ausschreibungsprüfung (ohne Berechnung)', '#6366f1'],
+  ['Admin & Orga', 'Ausschreibungsbearbeitung (ohne Berechnung)', '#6366f1'],
+  ['Admin & Orga', 'Strategie & Leitung (ohne Berechnung)', '#6366f1'],
+
+  // Einzelprojekte
+  ['KI-Coding Training', '', '#8b5cf6'],
+  ['Erweiterung des Zeugnisgenerators', 'AIP-54', '#a855f7'],
+  ['Vorlage für Confluence - Selbstpräsentation', 'AIP-9', '#d946ef'],
+  ['Personas für Homepage', 'AIP-44', '#ec4899'],
+  ['Internes RAG', 'AIP-7', '#f43f5e'],
+  ['Schulung: Management-Kommunikation', 'AIP-33', '#ef4444'],
+  ['Schulung: GenAI-Basics für anwendende Berater', 'AIP-50', '#f97316'],
+  ['Automatisierter Zugriff auf Kundenauftragsdaten aus Collmex', 'AIP-52', '#f59e0b'],
+  ['Weiterentwicklung und Wissensverankerung CokeConverter', 'AIP-49', '#eab308'],
+  ['genAI-Fitness für atra.consulting – Kompetenzaufbau und Positionierung', 'AIP-57', '#84cc16'],
+  ['Automatisierte Standardisierung von Beraterprofilen ("Profilgenerator")', 'AIP-47', '#22c55e'],
+  ['Zeugnisgenerator 1.0', 'AIP-6', '#10b981'],
+  ['IT-Basic-Schulung', 'AIP-8', '#14b8a6'],
+  ['Unsere Positionierung als atra.consulting', 'AIP-42', '#06b6d4'],
+  ['Schnittstelle DATEV - Collmex für Gehaltsbuchungen', 'AIP-48', '#0ea5e9'],
+  ['Positionierung zur Barrierefreiheit', 'AIP-10', '#3b82f6'],
+  ['Homepage 3.0', 'AIP-1', '#2563eb'],
+  ['Einführung Wiki und Aufgaben-Management', '', '#4f46e5'],
+  ['Vertrieb', '', '#7c3aed'],
+  ['Projektbegleitung für die KI Werkstatt', '', '#0d9488'],
+  ['PoC VERA', '', '#059669'],
 ];
 
 async function seed() {
@@ -37,13 +47,13 @@ async function seed() {
   console.log('Cleared existing projects and mappings.');
 
   for (let i = 0; i < projects.length; i++) {
-    const p = projects[i];
+    const [name, rate, color] = projects[i];
     await db.query(
       `INSERT INTO projects (name, rate, color, archived, "order")
        VALUES ($1, $2, $3, false, $4)`,
-      [p.name, p.rate, p.color, i]
+      [name, rate, color, i]
     );
-    console.log(`  + ${p.name}${p.rate ? ` / ${p.rate}` : ''}`);
+    console.log(`  + ${name}${rate ? ` / ${rate}` : ''}`);
   }
 
   console.log(`\nDone. ${projects.length} projects inserted.`);
