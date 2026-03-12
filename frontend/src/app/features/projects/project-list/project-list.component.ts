@@ -2,7 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { ProjectStore } from '../../../state/project.store';
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
 import { ProjectFormComponent } from '../project-form/project-form.component';
-import { Project, CreateProjectDTO } from '../../../domain/models/project.model';
+import { Project, CreateProjectDTO, getProjectDisplayName } from '../../../domain/models/project.model';
 
 @Component({
   selector: 'app-project-list',
@@ -48,7 +48,10 @@ import { Project, CreateProjectDTO } from '../../../domain/models/project.model'
               </svg>
               <div class="w-4 h-4 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
               <div>
-                <div class="font-medium text-gray-900">{{ project.name }}</div>
+                <div class="font-medium text-gray-900">{{ getDisplayName(project) }}</div>
+                @if (project.shortName) {
+                  <div class="text-xs text-gray-400">{{ project.name }}/{{ project.rate }}</div>
+                }
                 @if (project.description) {
                   <div class="text-sm text-gray-500">{{ project.description }}</div>
                 }
@@ -103,6 +106,7 @@ import { Project, CreateProjectDTO } from '../../../domain/models/project.model'
 })
 export class ProjectListComponent {
   protected readonly projectStore = inject(ProjectStore);
+  protected readonly getDisplayName = getProjectDisplayName;
 
   isFormOpen = signal(false);
   editingProject = signal<Project | null>(null);
