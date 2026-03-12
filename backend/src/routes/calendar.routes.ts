@@ -38,13 +38,15 @@ router.get('/events', requireAuth, async (req, res) => {
     }
 
     res.json(events);
-  } catch (err: any) {
-    console.error('Calendar API error:', err.message);
-    if (err.code === 401) {
+  } catch (err: unknown) {
+    const status = (err as any)?.response?.status ?? (err as any)?.code;
+    if (status === 401 || status === 403) {
       req.session.destroy(() => {});
       res.status(401).json({ error: 'Token expired, please re-authenticate' });
       return;
     }
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('Calendar API error:', msg);
     res.status(500).json({ error: 'Failed to fetch calendar events' });
   }
 });
