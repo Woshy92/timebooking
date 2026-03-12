@@ -160,7 +160,7 @@ export class LocalStorageAdapter implements StoragePort {
   }
 }
 
-function safeParse<T>(raw: string | null, fallback: T): T {
+export function safeParse<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
   try { return JSON.parse(raw); } catch { return fallback; }
 }
