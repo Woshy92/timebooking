@@ -10,7 +10,14 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-MODE="${1:-}"
+OPEN_BROWSER=false
+MODE=""
+for arg in "$@"; do
+  case "$arg" in
+    --open) OPEN_BROWSER=true ;;
+    *)      MODE="$arg" ;;
+  esac
+done
 BACKEND_PID=""
 FRONTEND_PID=""
 
@@ -25,12 +32,15 @@ if [ "$MODE" = "--help" ] || [ "$MODE" = "-h" ]; then
   echo ""
   printf "${BOLD}Timebooking – Start-Skript${NC}\n"
   echo ""
-  echo "  Verwendung: ./start.sh [MODUS]"
+  echo "  Verwendung: ./start.sh [MODUS] [OPTIONEN]"
   echo ""
   echo "  Modi:"
   echo "    (ohne)       Startet Frontend + Backend (Google Calendar Import)"
   echo "    --local      Startet nur das Frontend (manuelle Zeiterfassung)"
   echo "    --help       Diese Hilfe anzeigen"
+  echo ""
+  echo "  Optionen:"
+  echo "    --open       Öffnet den Browser automatisch nach dem Start"
   echo ""
   echo "  Im --local Modus funktioniert alles außer Google Calendar Import:"
   echo "  Manuelle Einträge, Projekte, Export (PDF/CSV) – alles über LocalStorage."
@@ -162,11 +172,27 @@ ok "Benötigte Ports sind frei"
 cleanup() {
   echo ""
   info "Beende Prozesse..."
-  [ -n "$BACKEND_PID" ] && kill "$BACKEND_PID" 2>/dev/null || true
-  [ -n "$FRONTEND_PID" ] && kill "$FRONTEND_PID" 2>/dev/null || true
+  # SIGTERM an die Prozessgruppen senden (set -m macht jeden
+  # Hintergrund-Job zum eigenen Prozessgruppenleiter).
+  # So bekommen npm, tsx UND node alle sauber SIGTERM.
+  [ -n "$BACKEND_PID" ]  && kill -- -"$BACKEND_PID"  2>/dev/null || true
+  [ -n "$FRONTEND_PID" ] && kill -- -"$FRONTEND_PID" 2>/dev/null || true
+  # Kurz warten, damit Prozesse sauber herunterfahren können
+  sleep 0.3
+  # Verbliebene hart beenden
+  [ -n "$BACKEND_PID" ]  && kill -9 -- -"$BACKEND_PID"  2>/dev/null || true
+  [ -n "$FRONTEND_PID" ] && kill -9 -- -"$FRONTEND_PID" 2>/dev/null || true
+  wait 2>/dev/null || true
   ok "Alle Prozesse beendet"
 }
-trap cleanup EXIT INT TERM
+# INT/TERM lösen nur exit aus → EXIT führt cleanup genau einmal aus
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# Job Control aktivieren: Hintergrund-Jobs bekommen eigene Prozessgruppen.
+# Dadurch leitet Ctrl+C (SIGINT) NUR an das Script weiter, nicht an tsx/ng.
+set -m
 
 # ─── 7. Backend starten (nur im Vollmodus) ───────────────
 if [ "$MODE" != "--local" ]; then
@@ -214,4 +240,23 @@ echo ""
 printf "  ${YELLOW}Strg+C${NC} zum Beenden\n"
 echo ""
 
-wait
+if [ "$OPEN_BROWSER" = true ]; then
+  (
+    # Wait for frontend to be ready
+    for i in {1..30}; do
+      if curl -s http://localhost:4200 > /dev/null 2>&1; then
+        if command -v open &> /dev/null; then
+          open http://localhost:4200
+        elif command -v xdg-open &> /dev/null; then
+          xdg-open http://localhost:4200
+        fi
+        break
+      fi
+      sleep 1
+    done
+  ) &
+fi
+
+# set +m unterdrückt "[1]+ Terminated" Meldungen beim Beenden
+set +m
+wait || true

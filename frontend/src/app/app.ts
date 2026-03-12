@@ -1,5 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
-import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { filter, map } from 'rxjs';
 import { UiStore } from './state/ui.store';
 import { CalendarStore } from './state/calendar.store';
 import { TimeEntryStore } from './state/time-entry.store';
@@ -40,41 +42,94 @@ import { environment } from '../environments/environment';
              class="px-3 py-1.5 rounded-md text-xs font-medium hover:text-white hover:bg-gray-800 transition-colors">
             Projekte
           </a>
+          <a routerLink="/statistics" routerLinkActive="!text-white !bg-gray-800"
+             class="px-3 py-1.5 rounded-md text-xs font-medium hover:text-white hover:bg-gray-800 transition-colors">
+            Statistik
+          </a>
         </div>
       </div>
 
-      <!-- Center: Week navigator -->
-      <app-week-navigator />
+      <!-- Center: Week navigator (calendar only) -->
+      @if (isCalendarRoute()) {
+        <app-week-navigator />
+      }
 
       <!-- Right side -->
       <div class="flex items-center gap-1.5">
-        <!-- View toggle -->
-        <div class="flex bg-gray-800 rounded-md p-0.5">
-          <button
-            (click)="ui.setView('week')"
-            class="px-2.5 py-1 text-xs font-medium rounded transition-colors"
-            [class.bg-gray-600]="ui.activeView() === 'week'"
-            [class.text-white]="ui.activeView() === 'week'"
-          >
-            Woche
-          </button>
-          <button
-            (click)="ui.setView('day')"
-            class="px-2.5 py-1 text-xs font-medium rounded transition-colors"
-            [class.bg-gray-600]="ui.activeView() === 'day'"
-            [class.text-white]="ui.activeView() === 'day'"
-          >
-            Tag
-          </button>
-        </div>
+        @if (isCalendarRoute()) {
+          <!-- View toggle -->
+          <div class="flex bg-gray-800 rounded-md p-0.5">
+            <button
+              (click)="ui.setView('week')"
+              class="px-2.5 py-1 text-xs font-medium rounded transition-colors"
+              [class.bg-gray-600]="ui.activeView() === 'week'"
+              [class.text-white]="ui.activeView() === 'week'"
+            >
+              Woche
+            </button>
+            <button
+              (click)="ui.setView('day')"
+              class="px-2.5 py-1 text-xs font-medium rounded transition-colors"
+              [class.bg-gray-600]="ui.activeView() === 'day'"
+              [class.text-white]="ui.activeView() === 'day'"
+            >
+              Tag
+            </button>
+          </div>
 
-        <!-- Total hours badge -->
-        <div class="px-2.5 py-1 bg-gray-800 rounded-md text-xs font-medium text-gray-400 tabular-nums">
-          {{ timeEntryStore.totalHours().toFixed(1) }}h
-        </div>
+          <!-- Total hours badge -->
+          <div class="px-2.5 py-1 bg-gray-800 rounded-md text-xs font-medium text-gray-400 tabular-nums">
+            {{ timeEntryStore.totalHours().toFixed(1) }}h
+          </div>
+
+          <!-- Fill gaps -->
+          <button
+            (click)="fillGaps()"
+            class="flex items-center gap-1 px-2.5 py-1.5 bg-gray-800 rounded-md text-xs font-medium text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+            title="Zeiten auf Viertelstunde snappen und kleine Lücken schließen"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 3-6 3m12-6l-6 3 6 3"/>
+            </svg>
+            Lücken füllen
+          </button>
+
+          <!-- Highlight gaps toggle -->
+          <button
+            (click)="ui.toggleHighlightGaps()"
+            class="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors"
+            [class.bg-amber-500/20]="ui.highlightGaps()"
+            [class.text-amber-400]="ui.highlightGaps()"
+            [class.hover:bg-amber-500/30]="ui.highlightGaps()"
+            [class.bg-gray-800]="!ui.highlightGaps()"
+            [class.text-gray-300]="!ui.highlightGaps()"
+            [class.hover:bg-gray-700]="!ui.highlightGaps()"
+            [class.hover:text-white]="!ui.highlightGaps()"
+            title="Lücken zwischen Terminen hervorheben (15+ Min, 8–18 Uhr)"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            Gaps
+          </button>
+        }
 
         <!-- Google Calendar status -->
-        <div class="relative">
+        <div class="relative flex items-center">
+          @if (calendarStore.authenticated()) {
+            <button
+              (click)="refreshCalendar()"
+              class="flex items-center gap-1 px-2.5 py-1.5 bg-gray-800 rounded-md text-xs font-medium text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+              title="Google Kalender synchronisieren"
+            >
+              <svg class="w-3.5 h-3.5" [class.animate-spin]="calendarStore.loading()" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              Sync
+            </button>
+          }
           <button
             (click)="onGoogleConnect()"
             class="p-1.5 rounded-md hover:bg-gray-800 transition-colors"
@@ -152,6 +207,15 @@ export class App {
   protected readonly ui = inject(UiStore);
   protected readonly calendarStore = inject(CalendarStore);
   protected readonly timeEntryStore = inject(TimeEntryStore);
+  private readonly router = inject(Router);
+
+  protected readonly isCalendarRoute = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map(e => e.urlAfterRedirects.startsWith('/calendar')),
+    ),
+    { initialValue: true },
+  );
 
   readonly googleEnabled = environment.googleCalendarEnabled;
   showGoogleTooltip = signal(false);
@@ -168,6 +232,15 @@ export class App {
         }
       }, 2000);
     }
+  }
+
+  refreshCalendar() {
+    this.timeEntryStore.clearDismissedGoogleEventIds();
+    this.calendarStore.fetchEvents(this.ui.weekStart(), this.ui.weekEnd());
+  }
+
+  fillGaps() {
+    this.timeEntryStore.fillGaps();
   }
 
   onGoogleConnect() {

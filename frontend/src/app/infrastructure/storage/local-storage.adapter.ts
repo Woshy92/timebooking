@@ -7,6 +7,7 @@ import { Project, CreateProjectDTO } from '../../domain/models/project.model';
 const ENTRIES_KEY = 'tb:entries';
 const PROJECTS_KEY = 'tb:projects';
 const DISMISSED_GOOGLE_KEY = 'tb:dismissed-google-events';
+const RECURRING_MAPPINGS_KEY = 'tb:recurring-project-mappings';
 
 @Injectable()
 export class LocalStorageAdapter implements StoragePort {
@@ -79,6 +80,28 @@ export class LocalStorageAdapter implements StoragePort {
 
   clearDismissedGoogleEventIds(): Observable<void> {
     localStorage.removeItem(DISMISSED_GOOGLE_KEY);
+    return of(void 0);
+  }
+
+  getRecurringProjectMappings(): Observable<Map<string, string>> {
+    const raw = localStorage.getItem(RECURRING_MAPPINGS_KEY);
+    const obj: Record<string, string> = raw ? JSON.parse(raw) : {};
+    return of(new Map(Object.entries(obj)));
+  }
+
+  setRecurringProjectMapping(recurringEventId: string, projectId: string): Observable<void> {
+    const raw = localStorage.getItem(RECURRING_MAPPINGS_KEY);
+    const obj: Record<string, string> = raw ? JSON.parse(raw) : {};
+    obj[recurringEventId] = projectId;
+    localStorage.setItem(RECURRING_MAPPINGS_KEY, JSON.stringify(obj));
+    return of(void 0);
+  }
+
+  deleteRecurringProjectMapping(recurringEventId: string): Observable<void> {
+    const raw = localStorage.getItem(RECURRING_MAPPINGS_KEY);
+    const obj: Record<string, string> = raw ? JSON.parse(raw) : {};
+    delete obj[recurringEventId];
+    localStorage.setItem(RECURRING_MAPPINGS_KEY, JSON.stringify(obj));
     return of(void 0);
   }
 

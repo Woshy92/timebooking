@@ -12,5 +12,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/projects/project-list/project-list.component')
       .then(m => m.ProjectListComponent),
   },
+  {
+    path: 'statistics',
+    loadComponent: () => import('./features/statistics/statistics.component')
+      .then(m => m.StatisticsComponent),
+  },
   { path: '**', redirectTo: 'calendar' },
 ];

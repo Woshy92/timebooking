@@ -4,6 +4,8 @@ export interface CalendarEvent {
   start: Date;
   end: Date;
   description?: string;
+  attendees?: string[];
+  recurringEventId?: string;
   source: 'google';
 }
 

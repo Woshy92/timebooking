@@ -9,13 +9,21 @@ export class CalendarSyncService {
   private readonly uiStore = inject(UiStore);
 
   importEvent(event: CalendarEvent): void {
+    // Recurring mapping takes priority over default project
+    const recurringProjectId = event.recurringEventId
+      ? this.timeEntryStore.recurringProjectMappings().get(event.recurringEventId)
+      : undefined;
+
     this.timeEntryStore.addEntry({
       title: event.title,
       start: event.start,
       end: event.end,
-      projectId: this.uiStore.defaultProjectId() ?? undefined,
+      projectId: recurringProjectId ?? this.uiStore.defaultProjectId() ?? undefined,
       source: 'google',
       googleEventId: event.id,
+      recurringEventId: event.recurringEventId,
+      description: event.description || undefined,
+      attendees: event.attendees?.length ? event.attendees : undefined,
     });
   }
 }

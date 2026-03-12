@@ -39,6 +39,7 @@ export async function listEvents(tokens: Credentials, params: EventListParams) {
         .filter(Boolean),
       start: { dateTime: e.start!.dateTime! },
       end: { dateTime: e.end!.dateTime! },
+      ...(e.recurringEventId && { recurringEventId: e.recurringEventId }),
     }));
 
   return { events, tokens: newTokens };

@@ -13,3 +13,9 @@ export interface PopoverState {
   x: number;
   y: number;
 }
+
+export interface DragOverride {
+  entryId: string;
+  start: Date;
+  end: Date;
+}

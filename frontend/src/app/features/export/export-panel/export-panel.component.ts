@@ -44,6 +44,15 @@ import { format } from 'date-fns';
             <span class="text-sm text-gray-700">Projektübersicht (Projekt × Tag)</span>
           </label>
 
+          <label class="flex items-center gap-3 cursor-pointer select-none">
+            <div class="relative">
+              <input type="checkbox" [(ngModel)]="mergeConsecutive" class="sr-only peer" />
+              <div class="w-9 h-5 bg-gray-200 rounded-full peer-checked:bg-indigo-600 transition-colors"></div>
+              <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform"></div>
+            </div>
+            <span class="text-sm text-gray-700">Aufeinanderfolgende Termine zusammenfassen</span>
+          </label>
+
           <div class="pt-2 space-y-3">
             <button
               (click)="onExport('csv')"
@@ -95,6 +104,7 @@ export class ExportPanelComponent {
   fromDate = signal(format(this.ui.weekStart(), 'yyyy-MM-dd'));
   toDate = signal(format(this.ui.weekEnd(), 'yyyy-MM-dd'));
   includeSummary = true;
+  mergeConsecutive = false;
 
   constructor() {
     effect(() => {
@@ -109,6 +119,6 @@ export class ExportPanelComponent {
     this.exportService.export(fmt, {
       from: new Date(this.fromDate()),
       to: new Date(this.toDate() + 'T23:59:59'),
-    }, this.includeSummary);
+    }, this.includeSummary, this.mergeConsecutive);
   }
 }

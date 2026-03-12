@@ -12,6 +12,9 @@ interface UiState {
   isProjectPanelOpen: boolean;
   isExportPanelOpen: boolean;
   defaultProjectId: string | null;
+  highlightGaps: boolean;
+  viewStartHour: number;
+  viewEndHour: number;
 }
 
 const DEFAULT_PROJECT_KEY = 'tb:default-project-id';
@@ -24,6 +27,9 @@ const initialState: UiState = {
   isProjectPanelOpen: false,
   isExportPanelOpen: false,
   defaultProjectId: localStorage.getItem(DEFAULT_PROJECT_KEY),
+  highlightGaps: false,
+  viewStartHour: 7,
+  viewEndHour: 19,
 };
 
 export const UiStore = signalStore(
@@ -71,6 +77,15 @@ export const UiStore = signalStore(
     },
     closeAllPanels() {
       patchState(store, { isProjectPanelOpen: false, isExportPanelOpen: false });
+    },
+    toggleHighlightGaps() {
+      patchState(store, { highlightGaps: !store.highlightGaps() });
+    },
+    setViewStartHour(hour: number) {
+      patchState(store, { viewStartHour: Math.max(0, Math.min(hour, store.viewEndHour() - 2)) });
+    },
+    setViewEndHour(hour: number) {
+      patchState(store, { viewEndHour: Math.max(store.viewStartHour() + 2, Math.min(hour, 24)) });
     },
     setDefaultProject(projectId: string | null) {
       patchState(store, { defaultProjectId: projectId });

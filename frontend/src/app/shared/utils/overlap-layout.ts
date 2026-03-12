@@ -1,50 +1,54 @@
-import { TimeEntry } from '../../domain/models/time-entry.model';
-
 export interface OverlapInfo {
   col: number;
   total: number;
 }
 
+export interface OverlapItem {
+  id: string;
+  start: Date | string;
+  end: Date | string;
+}
+
 export function computeOverlapLayout(
-  entries: TimeEntry[],
+  items: OverlapItem[],
   result: Map<string, OverlapInfo>,
 ): void {
-  if (entries.length === 0) return;
-  const sorted = [...entries].sort(
+  if (items.length === 0) return;
+  const sorted = [...items].sort(
     (a, b) =>
       new Date(a.start).getTime() - new Date(b.start).getTime() ||
       new Date(b.end).getTime() - new Date(a.end).getTime(),
   );
-  const clusters: TimeEntry[][] = [];
-  let cluster: TimeEntry[] = [];
+  const clusters: OverlapItem[][] = [];
+  let cluster: OverlapItem[] = [];
   let clusterEnd = 0;
-  for (const entry of sorted) {
-    const s = new Date(entry.start).getTime();
-    const e = new Date(entry.end).getTime();
+  for (const item of sorted) {
+    const s = new Date(item.start).getTime();
+    const e = new Date(item.end).getTime();
     if (cluster.length === 0 || s < clusterEnd) {
-      cluster.push(entry);
+      cluster.push(item);
       clusterEnd = Math.max(clusterEnd, e);
     } else {
       clusters.push(cluster);
-      cluster = [entry];
+      cluster = [item];
       clusterEnd = e;
     }
   }
   if (cluster.length > 0) clusters.push(cluster);
   for (const c of clusters) {
     const colEnds: number[] = [];
-    for (const entry of c) {
-      const s = new Date(entry.start).getTime();
+    for (const item of c) {
+      const s = new Date(item.start).getTime();
       let col = colEnds.findIndex(end => end <= s);
       if (col === -1) {
         col = colEnds.length;
         colEnds.push(0);
       }
-      colEnds[col] = new Date(entry.end).getTime();
-      result.set(entry.id, { col, total: 0 });
+      colEnds[col] = new Date(item.end).getTime();
+      result.set(item.id, { col, total: 0 });
     }
-    for (const entry of c) {
-      result.get(entry.id)!.total = colEnds.length;
+    for (const item of c) {
+      result.get(item.id)!.total = colEnds.length;
     }
   }
 }

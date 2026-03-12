@@ -5,12 +5,13 @@ import { TimeEntry, CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../../domain/
 import { Project, CreateProjectDTO } from '../../domain/models/project.model';
 
 const DB_NAME = 'timebooking';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORES = {
   entries: 'entries',
   projects: 'projects',
   dismissed: 'dismissedGoogleEvents',
+  recurringMappings: 'recurringProjectMappings',
 } as const;
 
 @Injectable()
@@ -34,6 +35,9 @@ export class IndexedDbAdapter implements StoragePort {
         }
         if (!db.objectStoreNames.contains(STORES.dismissed)) {
           db.createObjectStore(STORES.dismissed, { keyPath: 'eventId' });
+        }
+        if (!db.objectStoreNames.contains(STORES.recurringMappings)) {
+          db.createObjectStore(STORES.recurringMappings, { keyPath: 'recurringEventId' });
         }
       };
 
@@ -133,6 +137,27 @@ export class IndexedDbAdapter implements StoragePort {
 
   clearDismissedGoogleEventIds(): Observable<void> {
     return from(this.tx(STORES.dismissed, 'readwrite', s => s.clear()).then(() => {}));
+  }
+
+  // ─── Recurring Project Mappings ───────────────────────
+
+  getRecurringProjectMappings(): Observable<Map<string, string>> {
+    return from(
+      this.txAll<{ recurringEventId: string; projectId: string }>(STORES.recurringMappings, s => s.getAll())
+        .then(items => new Map(items.map(i => [i.recurringEventId, i.projectId])))
+    );
+  }
+
+  setRecurringProjectMapping(recurringEventId: string, projectId: string): Observable<void> {
+    return from(
+      this.tx(STORES.recurringMappings, 'readwrite', s => s.put({ recurringEventId, projectId })).then(() => {})
+    );
+  }
+
+  deleteRecurringProjectMapping(recurringEventId: string): Observable<void> {
+    return from(
+      this.tx(STORES.recurringMappings, 'readwrite', s => s.delete(recurringEventId)).then(() => {})
+    );
   }
 
   // ─── Projects ──────────────────────────────────────────

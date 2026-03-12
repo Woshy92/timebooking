@@ -37,6 +37,9 @@ export const CalendarStore = signalStore(
       getAuthUrl(callback: (url: string) => void) {
         calendarPort.getAuthUrl().subscribe({ next: callback });
       },
+      clearEvents() {
+        patchState(store, { events: [] });
+      },
       setAuthenticated(value: boolean) {
         patchState(store, { authenticated: value });
       },

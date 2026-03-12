@@ -8,7 +8,11 @@ export interface TimeEntry {
   projectId?: string;
   source: TimeEntrySource;
   googleEventId?: string;
+  recurringEventId?: string;
+  description?: string;
+  attendees?: string[];
   notes?: string;
+  pause?: boolean;
 }
 
 export type CreateTimeEntryDTO = Omit<TimeEntry, 'id'>;

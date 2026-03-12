@@ -9,6 +9,8 @@ interface GoogleEventDTO {
   id: string;
   summary: string;
   description?: string;
+  attendees?: string[];
+  recurringEventId?: string;
   start: { dateTime: string };
   end: { dateTime: string };
 }
@@ -33,6 +35,8 @@ export class GoogleCalendarAdapter implements CalendarPort {
         start: new Date(e.start.dateTime),
         end: new Date(e.end.dateTime),
         description: e.description,
+        attendees: e.attendees?.length ? e.attendees : undefined,
+        recurringEventId: e.recurringEventId,
         source: 'google' as const,
       })))
     );

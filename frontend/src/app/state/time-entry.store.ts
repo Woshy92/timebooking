@@ -9,6 +9,7 @@ interface TimeEntryState {
   loading: boolean;
   error: string | null;
   dismissedGoogleEventIds: string[];
+  recurringProjectMappings: Map<string, string>;
 }
 
 export const TimeEntryStore = signalStore(
@@ -18,6 +19,7 @@ export const TimeEntryStore = signalStore(
     loading: false,
     error: null,
     dismissedGoogleEventIds: [],
+    recurringProjectMappings: new Map<string, string>(),
   }),
   withComputed(({ entries }) => ({
     entriesByProject: computed(() => {
@@ -114,6 +116,29 @@ export const TimeEntryStore = signalStore(
           }),
         });
       },
+      loadRecurringProjectMappings() {
+        storage.getRecurringProjectMappings().subscribe({
+          next: (mappings) => patchState(store, { recurringProjectMappings: mappings }),
+        });
+      },
+      setRecurringProjectMapping(recurringEventId: string, projectId: string) {
+        storage.setRecurringProjectMapping(recurringEventId, projectId).subscribe({
+          next: () => {
+            const updated = new Map(store.recurringProjectMappings());
+            updated.set(recurringEventId, projectId);
+            patchState(store, { recurringProjectMappings: updated });
+          },
+        });
+      },
+      deleteRecurringProjectMapping(recurringEventId: string) {
+        storage.deleteRecurringProjectMapping(recurringEventId).subscribe({
+          next: () => {
+            const updated = new Map(store.recurringProjectMappings());
+            updated.delete(recurringEventId);
+            patchState(store, { recurringProjectMappings: updated });
+          },
+        });
+      },
     };
   }),
   withMethods((store) => ({
@@ -143,6 +168,7 @@ export const TimeEntryStore = signalStore(
   withHooks({
     onInit(store) {
       store.loadDismissedGoogleEventIds();
+      store.loadRecurringProjectMappings();
     },
   })
 );

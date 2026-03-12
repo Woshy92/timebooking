@@ -1,6 +1,74 @@
 # Timebooking
 
-Zeiterfassungstool für Berater. Zieht Termine aus Google Calendar, zeigt sie in einer Wochen-/Tagesansicht an und erlaubt die flexible Zuordnung zu konfigurierbaren Projekten. Export als PDF und CSV.
+Zeiterfassungstool für Berater. Funktioniert komplett lokal im Browser – optional mit Google Calendar Import für automatischen Terminabgleich.
+
+## Schnellstart
+
+### Lokal-Modus (empfohlen zum Ausprobieren)
+
+Keine Konfiguration nötig. Alles wird im Browser gespeichert (IndexedDB/LocalStorage).
+
+```bash
+git clone <repo-url> && cd timebooking
+
+# Option A: Start-Skript
+./start.sh --local
+
+# Option B: Manuell
+cd frontend
+npm install
+npx ng serve --configuration local
+```
+
+Öffne **http://localhost:4200** – fertig.
+
+### Mit Google Calendar
+
+Wenn du Termine aus Google Calendar importieren möchtest, brauchst du zusätzlich ein Google Cloud Projekt. Siehe [SETUP.md](SETUP.md) für die einmalige Einrichtung.
+
+```bash
+# 1. Backend konfigurieren (einmalig)
+cd backend
+cp .env.example .env
+# → Google OAuth Credentials in .env eintragen (siehe SETUP.md)
+
+# 2. Starten
+./start.sh
+```
+
+Das Start-Skript prüft automatisch Node.js-Version, Dependencies, Ports und `.env`-Konfiguration.
+
+```
+./start.sh              # Frontend + Backend (Google Calendar)
+./start.sh --local      # Nur Frontend (manuelle Zeiterfassung)
+./start.sh --open       # Zusätzlich Browser öffnen
+./start.sh --help       # Alle Optionen anzeigen
+```
+
+## Voraussetzungen
+
+- **Node.js >= 20** und **npm >= 10** ([nodejs.org](https://nodejs.org/))
+- **Google Cloud Projekt** (nur für Google Calendar Import – siehe [SETUP.md](SETUP.md))
+
+## Was kann die App?
+
+| Feature | Lokal-Modus | Mit Google Calendar |
+|---------|:-----------:|:-------------------:|
+| Wochenansicht mit Zeitraster | ✓ | ✓ |
+| Tagesansicht | ✓ | ✓ |
+| Einträge erstellen per Klick & Drag | ✓ | ✓ |
+| Einträge bearbeiten (Titel, Zeit, Projekt, Notizen) | ✓ | ✓ |
+| Einträge per Drag resizen | ✓ | ✓ |
+| Projektverwaltung mit Farben | ✓ | ✓ |
+| Export als PDF & CSV | ✓ | ✓ |
+| Statistiken (Linie, Balken, Kreis) | ✓ | ✓ |
+| Urlaubs-Markierung | ✓ | ✓ |
+| Google Calendar Termine importieren | – | ✓ |
+| Überlappende Einträge nebeneinander | ✓ | ✓ |
+| Undo nach Löschen | ✓ | ✓ |
+| Multi-Select & Batch-Aktionen | ✓ | ✓ |
+
+**Datenhaltung**: Alle Daten liegen im Browser (IndexedDB). Es gibt keinen zentralen Server – die App ist auch offline nutzbar (im Lokal-Modus).
 
 ## Architektur
 
@@ -13,15 +81,14 @@ frontend/src/app/
 │   └── ports/        CalendarPort, StoragePort, ExportPort
 ├── application/      Use-Case Services (Orchestrierung)
 ├── infrastructure/   Adapter (konkrete Implementierungen)
-│   ├── calendar/     GoogleCalendarAdapter  → CalendarPort
-│   ├── storage/      LocalStorageAdapter    → StoragePort
-│   └── export/       PdfExportAdapter       → ExportPort
-│                     CsvExportAdapter       → ExportPort
+│   ├── calendar/     GoogleCalendarAdapter / NoopCalendarAdapter
+│   ├── storage/      IndexedDbAdapter / LocalStorageAdapter
+│   └── export/       PdfExportAdapter / CsvExportAdapter
 ├── state/            NgRx Signal Stores
 ├── features/         UI-Feature-Module (lazy loaded)
 └── shared/           Wiederverwendbare UI-Komponenten + Pipes
 
-backend/src/
+backend/src/          (nur für Google Calendar)
 ├── routes/           Auth + Calendar API Routen
 ├── services/         Google Calendar API Wrapper
 ├── middleware/       Auth Guard
@@ -33,10 +100,10 @@ backend/src/
 In `frontend/src/app/app.config.ts` – eine Zeile pro Adapter:
 
 ```typescript
-{ provide: STORAGE_PORT, useClass: LocalStorageAdapter },   // → IndexedDB, Supabase, ...
-{ provide: CALENDAR_PORT, useClass: GoogleCalendarAdapter }, // → Outlook, Apple, ...
-{ provide: PDF_EXPORT_PORT, useClass: PdfExportAdapter },   // → anderes PDF-Tool
-{ provide: CSV_EXPORT_PORT, useClass: CsvExportAdapter },   // → anderes Format
+{ provide: STORAGE_PORT, useClass: IndexedDbAdapter },      // → LocalStorage, Supabase, ...
+{ provide: CALENDAR_PORT, useClass: GoogleCalendarAdapter }, // → Outlook, Apple, Noop
+{ provide: PDF_EXPORT_PORT, useClass: PdfExportAdapter },
+{ provide: CSV_EXPORT_PORT, useClass: CsvExportAdapter },
 ```
 
 ## Tech Stack
@@ -46,45 +113,28 @@ In `frontend/src/app/app.config.ts` – eine Zeile pro Adapter:
 | Frontend      | Angular 19 (Standalone Components, Signals)     |
 | State         | NgRx Signal Store                               |
 | Styling       | Tailwind CSS 4                                  |
-| Backend       | Express 5 + TypeScript                          |
+| Charts        | Chart.js                                        |
+| Backend       | Express 5 + TypeScript (nur für Google OAuth)   |
 | Auth          | Google OAuth2 (Authorization Code Flow, Session) |
 | Calendar API  | Google Calendar API v3                          |
 | PDF Export    | jsPDF + jspdf-autotable                         |
 | CSV Export    | PapaParse                                       |
 
-## Voraussetzungen
-
-- Node.js >= 20
-- npm >= 10
-- Google Cloud Projekt mit Calendar API (siehe `SETUP.md`)
-
-## Quickstart
+## Entwicklung
 
 ```bash
-# 1. Repo klonen & Setup prüfen
-./start.sh
+# Frontend (Dev Server mit Hot Reload)
+cd frontend && npx ng serve            # http://localhost:4200
 
-# Oder manuell:
+# Frontend Lokal-Modus (ohne Backend)
+cd frontend && npx ng serve --configuration local
 
-# 2. Backend
-cd backend
-cp .env.example .env        # Dann Google Credentials eintragen
-npm install
-npm run dev
+# Backend (Dev Server mit Hot Reload)
+cd backend && npm run dev              # http://localhost:3000
 
-# 3. Frontend (neues Terminal)
-cd frontend
-npm install
-npm start                    # → http://localhost:4200
+# Frontend Build (Produktion)
+cd frontend && npx ng build
+
+# Backend Build
+cd backend && npm run build
 ```
-
-## Features
-
-- **Wochenansicht** mit Zeitraster (7–20 Uhr), Stunden pro Tag
-- **Tagesansicht** mit detaillierter Darstellung
-- **Google Calendar Import** – Events erscheinen gestrichelt, Klick importiert sie
-- **Doppelklick** auf leeren Slot erstellt neuen Eintrag
-- **Projektverwaltung** mit Farbauswahl und Abrechenbar-Flag
-- **Flexible Bearbeitung** – Titel, Zeiten, Projekt, Notizen
-- **Export** als CSV (Excel-kompatibel, `;`-Trenner) oder PDF (formatierter Bericht mit Summe)
-- **Wochennavigation** mit KW-Anzeige und Heute-Button

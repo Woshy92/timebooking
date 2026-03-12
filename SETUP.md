@@ -1,4 +1,7 @@
-# Setup-Anleitung: Google Cloud & Timebooking
+# Setup: Google Calendar Import
+
+> **Diese Anleitung ist nur nötig, wenn du Google Calendar Termine importieren möchtest.**
+> Ohne Google-Anbindung funktioniert die App komplett lokal: `./start.sh --local`
 
 ## 1. Google Cloud Projekt erstellen
 
@@ -31,7 +34,7 @@
    - Trage deine Google-E-Mail-Adresse ein
    - **"Speichern und fortfahren"**
 
-> **Wichtig**: Solange die App im Status "Testing" ist, können nur die eingetragenen Testnutzer sich anmelden. Das reicht für den lokalen Betrieb völlig aus.
+> **Hinweis**: Solange die App im Status "Testing" ist, können nur die eingetragenen Testnutzer sich anmelden. Das reicht für den lokalen Betrieb völlig aus.
 
 ## 4. OAuth2-Credentials erstellen
 
@@ -62,48 +65,33 @@ SESSION_SECRET=ein-beliebiger-langer-string-hier
 PORT=3000
 ```
 
-> **SESSION_SECRET**: Beliebiger String, z.B. `openssl rand -hex 32` im Terminal ausführen und das Ergebnis eintragen.
+> **SESSION_SECRET**: Beliebiger String. Generiere einen mit: `openssl rand -hex 32`
 
-## 6. Dependencies installieren
-
-```bash
-# Backend
-cd backend
-npm install
-
-# Frontend
-cd frontend
-npm install
-```
-
-## 7. Starten
+## 6. Starten
 
 ```bash
-# Option A: start.sh (empfohlen)
+# Alles zusammen (empfohlen)
 ./start.sh
 
-# Option B: Manuell in zwei Terminals
-# Terminal 1 – Backend:
-cd backend && npm run dev
-
-# Terminal 2 – Frontend:
-cd frontend && npm start
+# Oder manuell in zwei Terminals:
+cd backend && npm install && npm run dev     # Terminal 1
+cd frontend && npm install && npx ng serve   # Terminal 2
 ```
 
-## 8. Google Kalender verbinden
+## 7. Google Kalender verbinden
 
 1. Öffne http://localhost:4200
-2. Klicke auf das Kalender-Icon (oben rechts, gelb = nicht verbunden)
-3. Du wirst zu Google weitergeleitet
-4. Melde dich mit dem Testnutzer-Account an
-5. Bestätige die Berechtigungen ("Unsichere App" Warnung ist normal im Test-Modus)
-6. Du wirst zurück zur App geleitet
-7. Deine Google Calendar Termine erscheinen als gestrichelte Karten
+2. Klicke auf das **Kalender-Icon** oben rechts (gelb = nicht verbunden)
+3. Melde dich mit deinem Google-Account an
+4. Bestätige die Berechtigungen ("Unsichere App" Warnung ist normal im Test-Modus)
+5. Du wirst zurück zur App geleitet – das Icon wird grün
+6. Deine Google Calendar Termine erscheinen als gestrichelte Karten
+7. Klicke auf einen Termin, um ihn als Zeiteintrag zu importieren
 
 ## Fehlerbehebung
 
 ### "Access blocked: This app's request is invalid" (Error 400)
-- Prüfe, ob die Redirect URI exakt `http://localhost:3000/auth/callback` ist (in Google Console UND in `.env`)
+- Prüfe, ob die Redirect URI exakt `http://localhost:3000/auth/callback` ist (in Google Console **und** in `.env`)
 - Kein Trailing Slash!
 
 ### "Access denied" / 403
@@ -116,8 +104,14 @@ cd frontend && npm start
 ### Keine Events sichtbar
 - Prüfe, ob der Google-Account tatsächlich Termine im angefragten Zeitraum hat
 - Ganztägige Events werden gefiltert (nur Events mit konkreter Uhrzeit)
+- Abgelehnte Termine (RSVP: "Nein") werden automatisch ausgeblendet
 - Navigiere mit den Pfeilen zur richtigen Woche
 
 ### Backend startet nicht
 - Prüfe, ob `.env` existiert und alle Werte gesetzt sind
 - Prüfe, ob Port 3000 frei ist: `lsof -i :3000`
+
+### Daten zurücksetzen
+Die App speichert alles im Browser. Zum Zurücksetzen:
+- **DevTools** → **Application** → **IndexedDB** → `timebooking` → Datenbank löschen
+- Oder: **Application** → **Storage** → **Clear site data**

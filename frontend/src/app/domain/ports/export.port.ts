@@ -9,6 +9,7 @@ export interface ExportOptions {
   dateRange: { from: Date; to: Date };
   filename?: string;
   includeSummary?: boolean;
+  mergeConsecutive?: boolean;
 }
 
 export interface ExportPort {
