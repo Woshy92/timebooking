@@ -59,7 +59,11 @@ export class UndoToastComponent {
         projectId: entry.projectId,
         source: entry.source,
         googleEventId: entry.googleEventId,
+        recurringEventId: entry.recurringEventId,
+        description: entry.description,
+        attendees: entry.attendees,
         notes: entry.notes,
+        pause: entry.pause,
       });
     }
     this.undoStore.clear();
