@@ -148,30 +148,47 @@ export const TimeEntryStore = signalStore(
       },
     };
   }),
-  withMethods((store) => ({
-    fillGaps() {
-      const entries = store.entries();
-      if (entries.length === 0) return;
+  withMethods((store) => {
+    const storage = inject(STORAGE_PORT);
+    return {
+      fillGaps() {
+        const entries = store.entries();
+        if (entries.length === 0) return;
 
-      const byDay = new Map<string, TimeEntry[]>();
-      for (const e of entries) {
-        const dayKey = new Date(e.start).toDateString();
-        const list = byDay.get(dayKey) ?? [];
-        list.push(e);
-        byDay.set(dayKey, list);
-      }
+        const byDay = new Map<string, TimeEntry[]>();
+        for (const e of entries) {
+          const dayKey = new Date(e.start).toDateString();
+          const list = byDay.get(dayKey) ?? [];
+          list.push(e);
+          byDay.set(dayKey, list);
+        }
 
-      for (const dayEntries of byDay.values()) {
-        const adjustments = computeGapFills(dayEntries);
-        for (const adj of adjustments) {
-          store.updateEntry(adj.id, {
+        const allAdjustments: { id: string; start?: Date; end?: Date }[] = [];
+        for (const dayEntries of byDay.values()) {
+          allAdjustments.push(...computeGapFills(dayEntries));
+        }
+        if (allAdjustments.length === 0) return;
+
+        // Apply all adjustments in one patchState to avoid race conditions
+        let updated = store.entries();
+        for (const adj of allAdjustments) {
+          updated = updated.map(e => e.id === adj.id
+            ? { ...e, ...(adj.start && { start: adj.start }), ...(adj.end && { end: adj.end }) }
+            : e
+          );
+        }
+        patchState(store, { entries: updated });
+
+        // Persist each adjustment to storage
+        for (const adj of allAdjustments) {
+          storage.updateEntry(adj.id, {
             ...(adj.start && { start: adj.start }),
             ...(adj.end && { end: adj.end }),
-          });
+          }).subscribe();
         }
-      }
-    },
-  })),
+      },
+    };
+  }),
   withHooks({
     onInit(store) {
       store.loadDismissedGoogleEventIds();
