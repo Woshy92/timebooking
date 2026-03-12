@@ -27,7 +27,9 @@ export const VacationStore = signalStore(
   withHooks({
     onInit(store) {
       const raw = localStorage.getItem(VACATION_KEY);
-      if (raw) patchState(store, { days: JSON.parse(raw) });
+      if (raw) {
+        try { patchState(store, { days: JSON.parse(raw) }); } catch { /* ignore corrupt data */ }
+      }
     },
   })
 );

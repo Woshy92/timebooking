@@ -90,22 +90,19 @@ export class LocalStorageAdapter implements StoragePort {
   }
 
   getRecurringProjectMappings(): Observable<Map<string, string>> {
-    const raw = localStorage.getItem(RECURRING_MAPPINGS_KEY);
-    const obj: Record<string, string> = raw ? JSON.parse(raw) : {};
+    const obj: Record<string, string> = safeParse(localStorage.getItem(RECURRING_MAPPINGS_KEY), {});
     return of(new Map(Object.entries(obj)));
   }
 
   setRecurringProjectMapping(recurringEventId: string, projectId: string): Observable<void> {
-    const raw = localStorage.getItem(RECURRING_MAPPINGS_KEY);
-    const obj: Record<string, string> = raw ? JSON.parse(raw) : {};
+    const obj: Record<string, string> = safeParse(localStorage.getItem(RECURRING_MAPPINGS_KEY), {});
     obj[recurringEventId] = projectId;
     localStorage.setItem(RECURRING_MAPPINGS_KEY, JSON.stringify(obj));
     return of(void 0);
   }
 
   deleteRecurringProjectMapping(recurringEventId: string): Observable<void> {
-    const raw = localStorage.getItem(RECURRING_MAPPINGS_KEY);
-    const obj: Record<string, string> = raw ? JSON.parse(raw) : {};
+    const obj: Record<string, string> = safeParse(localStorage.getItem(RECURRING_MAPPINGS_KEY), {});
     delete obj[recurringEventId];
     localStorage.setItem(RECURRING_MAPPINGS_KEY, JSON.stringify(obj));
     return of(void 0);
@@ -155,11 +152,15 @@ export class LocalStorageAdapter implements StoragePort {
   }
 
   private readAll<T>(key: string): T[] {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : [];
+    return safeParse(localStorage.getItem(key), []);
   }
 
   private persist<T>(key: string, data: T[]): void {
     localStorage.setItem(key, JSON.stringify(data));
   }
+}
+
+function safeParse<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+  try { return JSON.parse(raw); } catch { return fallback; }
 }
