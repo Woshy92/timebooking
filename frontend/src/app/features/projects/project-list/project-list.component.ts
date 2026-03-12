@@ -36,6 +36,7 @@ import { Project, CreateProjectDTO, getProjectDisplayName } from '../../../domai
             [class.border-gray-100]="dragOverId() !== project.id"
             [class.shadow-sm]="draggedId() !== project.id"
             [class.opacity-30]="draggedId() === project.id"
+            [class.opacity-60]="project.ignored && draggedId() !== project.id"
             draggable="true"
             (dragstart)="onDragStart($event, project.id)"
             (dragend)="onDragEnd()"
@@ -43,40 +44,66 @@ import { Project, CreateProjectDTO, getProjectDisplayName } from '../../../domai
             (dragleave)="onDragLeave(project.id)"
             (drop)="onDrop($event, project.id)"
           >
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-4 min-w-0 flex-1">
               <svg class="w-4 h-4 text-gray-300 group-hover:text-gray-400 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/>
               </svg>
               <div class="w-4 h-4 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
-              <div>
-                <div class="font-medium text-gray-900">{{ getDisplayName(project) }}</div>
+              <div class="min-w-0">
+                <div class="font-medium text-gray-900 truncate">{{ getDisplayName(project) }}</div>
                 @if (project.shortName) {
                   <div class="text-xs text-gray-400">{{ project.name }}/{{ project.rate }}</div>
                 }
                 @if (project.description) {
-                  <div class="text-sm text-gray-500">{{ project.description }}</div>
+                  <div class="text-sm text-gray-500 truncate">{{ project.description }}</div>
                 }
               </div>
             </div>
-            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                (click)="openForm(project)"
-                class="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-              </button>
-              <button
-                (click)="onArchive(project)"
-                class="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                </svg>
-              </button>
+            <div class="flex items-center gap-3 flex-shrink-0 ml-4">
+              <!-- Toggles: always visible -->
+              <div class="flex items-center gap-4">
+                <label class="flex items-center gap-1.5 cursor-pointer" title="Als Favorit im Kalender immer anzeigen">
+                  <span class="text-[11px] text-gray-400 select-none">Favorit</span>
+                  <button type="button" (click)="toggleFavorite(project)"
+                    class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none"
+                    [class.bg-indigo-500]="project.favorite"
+                    [class.bg-gray-200]="!project.favorite">
+                    <span class="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform"
+                      [style.transform]="project.favorite ? 'translateX(18px)' : 'translateX(2px)'"></span>
+                  </button>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer" title="Im Kalender ausblenden">
+                  <span class="text-[11px] text-gray-400 select-none">Ignorieren</span>
+                  <button type="button" (click)="toggleIgnored(project)"
+                    class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none"
+                    [class.bg-red-400]="project.ignored"
+                    [class.bg-gray-200]="!project.ignored">
+                    <span class="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform"
+                      [style.transform]="project.ignored ? 'translateX(18px)' : 'translateX(2px)'"></span>
+                  </button>
+                </label>
+              </div>
+              <!-- Edit/Archive: hover-only -->
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  (click)="openForm(project)"
+                  class="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                </button>
+                <button
+                  (click)="onArchive(project)"
+                  class="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         }
@@ -140,6 +167,13 @@ import { Project, CreateProjectDTO, getProjectDisplayName } from '../../../domai
       </div>
     }
   `,
+  styles: [`
+    :host {
+      display: block;
+      height: 100%;
+      overflow-y: auto;
+    }
+  `],
 })
 export class ProjectListComponent {
   protected readonly projectStore = inject(ProjectStore);
@@ -169,6 +203,18 @@ export class ProjectListComponent {
       this.projectStore.addProject(event);
     }
     this.closeForm();
+  }
+
+  toggleFavorite(project: Project) {
+    const changes: Partial<Project> = { favorite: !project.favorite };
+    if (!project.favorite) changes.ignored = false;
+    this.projectStore.updateProject(project.id, changes);
+  }
+
+  toggleIgnored(project: Project) {
+    const changes: Partial<Project> = { ignored: !project.ignored };
+    if (!project.ignored) changes.favorite = false;
+    this.projectStore.updateProject(project.id, changes);
   }
 
   onArchive(project: Project) {

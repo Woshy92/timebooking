@@ -8,6 +8,8 @@ function project(overrides: Partial<Project> = {}): Project {
     rate: '',
     color: '#000',
     archived: false,
+    favorite: false,
+    ignored: false,
     order: 0,
     ...overrides,
   };

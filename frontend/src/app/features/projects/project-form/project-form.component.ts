@@ -1,7 +1,8 @@
 import { Component, inject, input, output, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ColorPickerComponent } from '../../../shared/components/color-picker/color-picker.component';
+import { ColorPickerComponent, PRESET_COLORS } from '../../../shared/components/color-picker/color-picker.component';
 import { Project, CreateProjectDTO } from '../../../domain/models/project.model';
+import { ProjectStore } from '../../../state/project.store';
 
 @Component({
   selector: 'app-project-form',
@@ -76,16 +77,18 @@ export class ProjectFormComponent implements OnInit {
   cancelled = output<void>();
 
   private readonly fb = inject(FormBuilder);
+  private readonly projectStore = inject(ProjectStore);
   form!: FormGroup;
 
   ngOnInit() {
     const p = this.project();
+    const defaultColor = p?.color ?? this.nextAvailableColor();
     this.form = this.fb.group({
       name: [p?.name ?? '', Validators.required],
       rate: [p?.rate ?? '', Validators.required],
       shortName: [p?.shortName ?? ''],
       description: [p?.description ?? ''],
-      color: [p?.color ?? '#4F46E5'],
+      color: [defaultColor],
     });
   }
 
@@ -96,7 +99,13 @@ export class ProjectFormComponent implements OnInit {
     if (p) {
       this.saved.emit({ id: p.id, changes: v });
     } else {
-      this.saved.emit({ ...v, archived: false });
+      this.saved.emit({ ...v, archived: false, favorite: false, ignored: false });
     }
+  }
+
+  private nextAvailableColor(): string {
+    const usedColors = new Set(this.projectStore.projects().map(p => p.color));
+    return PRESET_COLORS.find(c => !usedColors.has(c))
+      ?? PRESET_COLORS[this.projectStore.projects().length % PRESET_COLORS.length];
   }
 }

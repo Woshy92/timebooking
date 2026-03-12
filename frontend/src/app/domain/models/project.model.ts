@@ -6,6 +6,8 @@ export interface Project {
   color: string;
   description?: string;
   archived: boolean;
+  favorite: boolean;
+  ignored: boolean;
   order: number;
 }
 

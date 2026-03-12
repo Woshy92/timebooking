@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, ElementRef, viewChild, viewChildren, afterNextRender, DestroyRef, effect } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { ProjectStore } from '../../../state/project.store';
 import { UiStore } from '../../../state/ui.store';
 import { getProjectDisplayName } from '../../../domain/models/project.model';
@@ -8,16 +8,15 @@ import { getProjectDisplayName } from '../../../domain/models/project.model';
   standalone: true,
   template: `
     <div class="flex items-center gap-1.5 min-w-0 flex-1">
-      <div class="flex items-center gap-1 min-w-0 overflow-hidden flex-1" #pillsContainer>
-        @for (project of projects(); track project.id; let i = $index) {
-          <button #pill
+      <div class="flex items-center gap-1 flex-wrap flex-1">
+        @for (project of visibleProjects(); track project.id) {
+          <button
             (click)="selectProject(project.id)"
             class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap
                    flex-shrink-0 border-2 transition-all cursor-pointer hover:shadow-sm"
             [style.background-color]="isSelected(project.id) ? project.color + '20' : project.color + '0A'"
             [style.border-color]="isSelected(project.id) ? project.color : 'transparent'"
             [style.color]="project.color"
-            [style.display]="i < visibleCount() ? '' : 'none'"
           >
             <div class="w-2 h-2 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
             {{ getDisplayName(project) }}
@@ -32,7 +31,7 @@ import { getProjectDisplayName } from '../../../domain/models/project.model';
           </button>
           @if (overflowOpen()) {
             <div class="fixed inset-0 z-30" (click)="overflowOpen.set(false)"></div>
-            <div class="absolute top-full right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-1 z-40 animate-pop-in">
+            <div class="absolute top-full right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-1 z-40 animate-pop-in max-h-80 overflow-y-auto">
               @for (project of overflowProjects(); track project.id) {
                 <button
                   (click)="selectProject(project.id); overflowOpen.set(false)"
@@ -55,36 +54,32 @@ import { getProjectDisplayName } from '../../../domain/models/project.model';
 export class ProjectPillsBarComponent {
   private readonly projectStore = inject(ProjectStore);
   private readonly uiStore = inject(UiStore);
-  private readonly destroyRef = inject(DestroyRef);
   protected readonly getDisplayName = getProjectDisplayName;
 
-  readonly pillsContainer = viewChild<ElementRef>('pillsContainer');
-  readonly pillElements = viewChildren<ElementRef>('pill');
-
-  readonly projects = this.projectStore.activeProjects;
-  visibleCount = signal(100);
   overflowOpen = signal(false);
 
-  readonly hasOverflow = computed(() => this.visibleCount() < this.projects().length);
-  readonly overflowCount = computed(() => this.projects().length - this.visibleCount());
-  readonly overflowProjects = computed(() => this.projects().slice(this.visibleCount()));
+  private readonly nonIgnoredProjects = computed(() =>
+    this.projectStore.activeProjects().filter(p => !p.ignored)
+  );
 
-  private recalcNeeded = effect(() => {
-    this.projects().length;
-    this.pillElements();
-    this.recalculate();
+  readonly visibleProjects = computed(() => {
+    const all = this.nonIgnoredProjects();
+    const favorites = all.filter(p => p.favorite);
+    const defaultId = this.uiStore.defaultProjectId();
+    const selectedNonFav = defaultId
+      ? all.find(p => p.id === defaultId && !p.favorite)
+      : undefined;
+    return selectedNonFav ? [...favorites, selectedNonFav] : favorites;
   });
 
-  constructor() {
-    afterNextRender(() => {
-      const container = this.pillsContainer()?.nativeElement;
-      if (!container) return;
-      const ro = new ResizeObserver(() => this.recalculate());
-      ro.observe(container);
-      this.destroyRef.onDestroy(() => ro.disconnect());
-      this.recalculate();
-    });
-  }
+  readonly overflowProjects = computed(() => {
+    const all = this.nonIgnoredProjects();
+    const defaultId = this.uiStore.defaultProjectId();
+    return all.filter(p => !p.favorite && p.id !== defaultId);
+  });
+
+  readonly hasOverflow = computed(() => this.overflowProjects().length > 0);
+  readonly overflowCount = computed(() => this.overflowProjects().length);
 
   isSelected(id: string): boolean {
     return this.uiStore.defaultProjectId() === id;
@@ -92,47 +87,5 @@ export class ProjectPillsBarComponent {
 
   selectProject(id: string) {
     this.uiStore.setDefaultProject(id);
-  }
-
-  private recalculate() {
-    const container = this.pillsContainer()?.nativeElement;
-    const pills = this.pillElements();
-    if (!container || pills.length === 0) {
-      this.visibleCount.set(this.projects().length);
-      return;
-    }
-
-    const containerWidth = container.clientWidth;
-    const overflowBtnWidth = 44;
-    const gap = 4;
-    let usedWidth = 0;
-    let count = 0;
-
-    // Temporarily show all pills so we can measure them
-    for (const pill of pills) {
-      pill.nativeElement.style.display = '';
-    }
-
-    for (let i = 0; i < pills.length; i++) {
-      const pillWidth = pills[i].nativeElement.offsetWidth;
-      const nextWidth = usedWidth + pillWidth + (count > 0 ? gap : 0);
-      const remaining = pills.length - i - 1;
-
-      if (remaining > 0 && nextWidth > containerWidth - overflowBtnWidth - gap) {
-        break;
-      }
-      if (remaining === 0 && nextWidth > containerWidth) {
-        break;
-      }
-      usedWidth = nextWidth;
-      count++;
-    }
-
-    // Hide overflow pills again
-    for (let i = count; i < pills.length; i++) {
-      pills[i].nativeElement.style.display = 'none';
-    }
-
-    this.visibleCount.set(count);
   }
 }

@@ -9,6 +9,8 @@ const project: Project = {
   rate: '',
   color: '#FF0000',
   archived: false,
+  favorite: false,
+  ignored: false,
   order: 0,
 };
 

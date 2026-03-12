@@ -27,8 +27,13 @@ export async function initializeDatabase(): Promise<void> {
       color       TEXT NOT NULL,
       description TEXT,
       archived    BOOLEAN NOT NULL DEFAULT FALSE,
-      "order"     INTEGER NOT NULL DEFAULT 0
+      "order"     INTEGER NOT NULL DEFAULT 0,
+      favorite    BOOLEAN NOT NULL DEFAULT FALSE,
+      ignored     BOOLEAN NOT NULL DEFAULT FALSE
     );
+
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS favorite BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS ignored BOOLEAN NOT NULL DEFAULT FALSE;
 
     CREATE TABLE IF NOT EXISTS time_entries (
       id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
