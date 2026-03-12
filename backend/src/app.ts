@@ -6,6 +6,7 @@ import session from 'express-session';
 import FileStoreFactory from 'session-file-store';
 import authRoutes from './routes/auth.routes.js';
 import calendarRoutes from './routes/calendar.routes.js';
+import storageRoutes from './routes/storage.routes.js';
 
 export function createApp() {
   const app = express();
@@ -82,6 +83,7 @@ export function createApp() {
 
   app.use('/auth', authRoutes);
   app.use('/api/calendar', calendarRoutes);
+  app.use('/api/storage', storageRoutes);
 
   // Health check
   app.get('/health', (_req, res) => {

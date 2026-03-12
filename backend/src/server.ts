@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { createApp } from './app.js';
+import { initializeDatabase } from './services/database.service.js';
 
 const required = ['SESSION_SECRET', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];
 for (const key of required) {
@@ -8,6 +9,9 @@ for (const key of required) {
     process.exit(1);
   }
 }
+
+await initializeDatabase();
+console.log('PGlite database initialized');
 
 const app = createApp();
 const port = parseInt(process.env.PORT || '3000', 10);

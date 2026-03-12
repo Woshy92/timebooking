@@ -10,6 +10,7 @@ import { PDF_EXPORT_PORT, CSV_EXPORT_PORT } from './domain/ports/export.port';
 import { GoogleCalendarAdapter } from './infrastructure/calendar/google-calendar.adapter';
 import { NoopCalendarAdapter } from './infrastructure/calendar/noop-calendar.adapter';
 import { IndexedDbAdapter } from './infrastructure/storage/indexeddb.adapter';
+import { ApiStorageAdapter } from './infrastructure/storage/api-storage.adapter';
 import { PdfExportAdapter } from './infrastructure/export/pdf-export.adapter';
 import { CsvExportAdapter } from './infrastructure/export/csv-export.adapter';
 import { environment } from '../environments/environment';
@@ -17,6 +18,11 @@ import { environment } from '../environments/environment';
 const calendarAdapter = environment.googleCalendarEnabled
   ? GoogleCalendarAdapter
   : NoopCalendarAdapter;
+
+// Storage: ApiStorageAdapter (PGlite backend) or IndexedDbAdapter (browser-local fallback)
+const storageAdapter = environment.backendUrl
+  ? ApiStorageAdapter
+  : IndexedDbAdapter;
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -30,7 +36,7 @@ export const appConfig: ApplicationConfig = {
 
     // Hexagonal: Port -> Adapter bindings
     { provide: CALENDAR_PORT, useClass: calendarAdapter },
-    { provide: STORAGE_PORT, useClass: IndexedDbAdapter },
+    { provide: STORAGE_PORT, useClass: storageAdapter },
     { provide: PDF_EXPORT_PORT, useClass: PdfExportAdapter },
     { provide: CSV_EXPORT_PORT, useClass: CsvExportAdapter },
   ],
