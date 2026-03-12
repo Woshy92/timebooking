@@ -1,30 +1,29 @@
-import { Component, inject, computed, signal, ElementRef, viewChild, afterNextRender, HostListener } from '@angular/core';
+import { Component, inject, computed, ElementRef, viewChild, afterNextRender, HostListener } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TimeEntryStore } from '../../../state/time-entry.store';
 import { ProjectStore } from '../../../state/project.store';
 import { CalendarStore } from '../../../state/calendar.store';
 import { UiStore } from '../../../state/ui.store';
-import { CalendarSyncService } from '../../../application/calendar-sync.service';
 import { UndoStore } from '../../../state/undo.store';
 import { VacationStore } from '../../../state/vacation.store';
 import { DurationPipe } from '../../../shared/pipes/duration.pipe';
 import { format, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { TimeEntry } from '../../../domain/models/time-entry.model';
-import { Project, getProjectDisplayName } from '../../../domain/models/project.model';
-import { CalendarEvent } from '../../../domain/models/calendar-event.model';
+import { getProjectDisplayName } from '../../../domain/models/project.model';
+import { SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
 import { ClearConfirmPopoverComponent } from '../../../shared/components/clear-confirm-popover/clear-confirm-popover.component';
 import { ProjectPopoverComponent } from '../../../shared/components/project-popover/project-popover.component';
-import { DraftEntry, PopoverState, DragOverride, RecurringConfirmState, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
 import { RecurringConfirmComponent } from '../../../shared/components/recurring-confirm/recurring-confirm.component';
 import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as calcEntryWidth } from '../../../shared/utils/overlap-layout';
-import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
-import { getEntryColor as calcEntryColor, getProject as calcProject } from '../../../shared/utils/entry-styling';
+import { snapToHalfHour, snapToGrid, formatTime } from '../../../shared/utils/time-helpers';
 import { startAutoScroll } from '../../../shared/utils/auto-scroll';
 import { findGapSuggestions, GapSuggestion } from '../../../shared/utils/gap-filler';
+import { CalendarInteractionService } from '../../../shared/services/calendar-interaction.service';
 
 const HOUR_HEIGHT = 72;
+const MIN_BLOCK_HEIGHT = 34;
 
 @Component({
   selector: 'app-day-view',
@@ -128,14 +127,14 @@ const HOUR_HEIGHT = 72;
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                   </svg>
                   <div class="min-w-0 flex-1">
-                    <div class="font-medium text-amber-600 group-hover:text-amber-700 transition-colors">{{ getGapMinutes(gap) }} Min verfügbar</div>
+                    <div class="font-medium text-amber-600 group-hover:text-amber-700 transition-colors">{{ interaction.getGapMinutes(gap) }} Min verfügbar</div>
                     <div class="text-amber-400 text-xs tabular-nums">{{ formatTime(gap.start) }}–{{ formatTime(gap.end) }}</div>
                   </div>
                   <button
                     class="opacity-0 group-hover:opacity-100 px-2 py-0.5 rounded text-[11px] font-medium
                            bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-gray-700 transition-all flex-shrink-0"
                     title="Als Pause markieren"
-                    (click)="onGapPause($event, gap)"
+                    (click)="interaction.onGapPause($event, gap)"
                   >
                     Pause
                   </button>
@@ -155,7 +154,7 @@ const HOUR_HEIGHT = 72;
               [style.left]="getEntryLeft(event.id)"
               [style.width]="getEntryWidth(event.id)"
               (mousedown)="$event.stopPropagation()"
-              (click)="onGoogleEventClick($event, event)"
+              (click)="interaction.onGoogleEventClick($event, event)"
             >
               <div class="flex items-start gap-2">
                 <svg class="w-3.5 h-3.5 text-gray-400 group-hover:text-indigo-500 mt-[1px] flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -168,7 +167,7 @@ const HOUR_HEIGHT = 72;
                 <button
                   class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-all flex-shrink-0"
                   title="Ausblenden"
-                  (click)="dismissGoogleEvent($event, event.id)"
+                  (click)="interaction.dismissGoogleEvent($event, event.id)"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -185,18 +184,18 @@ const HOUR_HEIGHT = 72;
                 class="absolute rounded-lg cursor-pointer z-[5] border border-dashed border-gray-300
                        hover:border-gray-400 transition-all group"
                 style="background: repeating-linear-gradient(-45deg, transparent, transparent 5px, rgba(156,163,175,0.08) 5px, rgba(156,163,175,0.08) 10px)"
-                [style.top.px]="getTopPosition(getEffectiveStart(entry))"
-                [style.height.px]="getBlockHeight(getEffectiveStart(entry), getEffectiveEnd(entry))"
+                [style.top.px]="getTopPosition(interaction.getEffectiveStart(entry))"
+                [style.height.px]="getBlockHeight(interaction.getEffectiveStart(entry), interaction.getEffectiveEnd(entry))"
                 [style.min-height.px]="34"
                 [style.left]="getEntryLeft(entry.id)"
                 [style.width]="getEntryWidth(entry.id)"
-                [class.ring-2]="selectedEntryIds().has(entry.id)"
-                [class.ring-gray-400]="selectedEntryIds().has(entry.id)"
-                [class.opacity-60]="dragOverride()?.entryId === entry.id"
-                [class.!z-50]="dragOverride()?.entryId === entry.id"
+                [class.ring-2]="interaction.selectedEntryIds().has(entry.id)"
+                [class.ring-gray-400]="interaction.selectedEntryIds().has(entry.id)"
+                [class.opacity-60]="interaction.dragOverride()?.entryId === entry.id"
+                [class.!z-50]="interaction.dragOverride()?.entryId === entry.id"
                 (mousedown)="onEntryMouseDown($event, entry)"
-                (click)="onEntryClick($event, entry)"
-                (dblclick)="onEntryDblClick($event, entry)"
+                (click)="interaction.onEntryClick($event, entry)"
+                (dblclick)="interaction.onEntryDblClick($event, entry)"
               >
                 <div class="px-3 py-2 h-full flex flex-col overflow-hidden">
                   <div class="flex items-center gap-1.5 text-gray-400">
@@ -206,7 +205,7 @@ const HOUR_HEIGHT = 72;
                     <div class="text-sm font-medium truncate">Pause</div>
                   </div>
                   <div class="text-xs tabular-nums mt-0.5 text-gray-400" style="opacity: 0.6">
-                    {{ formatTime(getEffectiveStart(entry)) }}–{{ formatTime(getEffectiveEnd(entry)) }} · {{ getDurationMinutes(entry) | duration }}
+                    {{ formatTime(interaction.getEffectiveStart(entry)) }}–{{ formatTime(interaction.getEffectiveEnd(entry)) }} · {{ getDurationMinutes(entry) | duration }}
                   </div>
                 </div>
                 <!-- Top resize handle -->
@@ -229,25 +228,25 @@ const HOUR_HEIGHT = 72;
               <div
                 class="absolute rounded-lg cursor-pointer z-[6]
                        shadow-sm hover:shadow-lg transition-all group"
-                [style.top.px]="getTopPosition(getEffectiveStart(entry))"
-                [style.height.px]="getBlockHeight(getEffectiveStart(entry), getEffectiveEnd(entry))"
+                [style.top.px]="getTopPosition(interaction.getEffectiveStart(entry))"
+                [style.height.px]="getBlockHeight(interaction.getEffectiveStart(entry), interaction.getEffectiveEnd(entry))"
                 [style.min-height.px]="34"
                 [style.left]="getEntryLeft(entry.id)"
                 [style.width]="getEntryWidth(entry.id)"
-                [style.background-color]="getEntryColor(entry) + '15'"
-                [style.border-left]="'4px solid ' + getEntryColor(entry)"
-                [class.ring-2]="selectedEntryIds().has(entry.id)"
-                [class.ring-indigo-400]="selectedEntryIds().has(entry.id)"
-                [class.opacity-60]="dragOverride()?.entryId === entry.id"
-                [class.shadow-xl]="dragOverride()?.entryId === entry.id"
-                [class.!z-50]="dragOverride()?.entryId === entry.id"
+                [style.background-color]="interaction.getEntryColor(entry) + '15'"
+                [style.border-left]="'4px solid ' + interaction.getEntryColor(entry)"
+                [class.ring-2]="interaction.selectedEntryIds().has(entry.id)"
+                [class.ring-indigo-400]="interaction.selectedEntryIds().has(entry.id)"
+                [class.opacity-60]="interaction.dragOverride()?.entryId === entry.id"
+                [class.shadow-xl]="interaction.dragOverride()?.entryId === entry.id"
+                [class.!z-50]="interaction.dragOverride()?.entryId === entry.id"
                 (mousedown)="onEntryMouseDown($event, entry)"
-                (click)="onEntryClick($event, entry)"
-                (dblclick)="onEntryDblClick($event, entry)"
+                (click)="interaction.onEntryClick($event, entry)"
+                (dblclick)="interaction.onEntryDblClick($event, entry)"
               >
                 <div class="px-3 py-2 h-full flex flex-col overflow-hidden">
                   <div class="flex items-center gap-1.5">
-                    <div class="text-sm font-semibold truncate" [style.color]="getEntryColor(entry)">{{ entry.title || 'Ohne Beschreibung' }}</div>
+                    <div class="text-sm font-semibold truncate" [style.color]="interaction.getEntryColor(entry)">{{ entry.title || 'Ohne Beschreibung' }}</div>
                     @if (entry.source === 'google') {
                       <svg class="w-3 h-3 flex-shrink-0 opacity-50" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
@@ -257,11 +256,11 @@ const HOUR_HEIGHT = 72;
                       </svg>
                     }
                   </div>
-                  <div class="text-xs tabular-nums mt-0.5" [style.color]="getEntryColor(entry)" style="opacity: 0.6">
-                    {{ formatTime(getEffectiveStart(entry)) }}–{{ formatTime(getEffectiveEnd(entry)) }} · {{ getDurationMinutes(entry) | duration }}
+                  <div class="text-xs tabular-nums mt-0.5" [style.color]="interaction.getEntryColor(entry)" style="opacity: 0.6">
+                    {{ formatTime(interaction.getEffectiveStart(entry)) }}–{{ formatTime(interaction.getEffectiveEnd(entry)) }} · {{ getDurationMinutes(entry) | duration }}
                   </div>
-                  @if (getProject(entry); as p) {
-                    <div class="text-[10px] font-bold mt-auto truncate uppercase tracking-wider" [style.color]="getEntryColor(entry)" style="opacity: 0.5">{{ getDisplayName(p) }}</div>
+                  @if (interaction.getProject(entry); as p) {
+                    <div class="text-[10px] font-bold mt-auto truncate uppercase tracking-wider" [style.color]="interaction.getEntryColor(entry)" style="opacity: 0.5">{{ getDisplayName(p) }}</div>
                   }
                 </div>
                 <!-- Top resize handle -->
@@ -269,25 +268,25 @@ const HOUR_HEIGHT = 72;
                   class="absolute top-0 left-0 right-0 h-3 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
                   (mousedown)="onResizeTopStart($event, entry)"
                 >
-                  <div class="absolute top-1 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full" [style.background-color]="getEntryColor(entry)" style="opacity: 0.4"></div>
+                  <div class="absolute top-1 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full" [style.background-color]="interaction.getEntryColor(entry)" style="opacity: 0.4"></div>
                 </div>
                 <!-- Bottom resize handle -->
                 <div
                   class="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
                   (mousedown)="onResizeStart($event, entry)"
                 >
-                  <div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full" [style.background-color]="getEntryColor(entry)" style="opacity: 0.4"></div>
+                  <div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full" [style.background-color]="interaction.getEntryColor(entry)" style="opacity: 0.4"></div>
                 </div>
               </div>
             }
           }
 
           <!-- Draft block -->
-          @if (draft()) {
+          @if (interaction.draft()) {
             <div
               class="absolute left-3 right-3 rounded-lg z-30 border-2 border-dashed"
-              [style.top.px]="getDraftTop()"
-              [style.height.px]="getDraftHeight()"
+              [style.top.px]="interaction.getDraftTop(viewStart(), hourHeight)"
+              [style.height.px]="interaction.getDraftHeight(hourHeight, 34)"
               [style.min-height.px]="34"
               [style.border-color]="draftColor()"
               [style.background-color]="draftColor() + '0A'"
@@ -298,17 +297,17 @@ const HOUR_HEIGHT = 72;
                   class="bg-transparent text-sm font-semibold placeholder:opacity-40 outline-none w-full"
                   [style.color]="draftColor()"
                   placeholder="Beschreibung eingeben..."
-                  [ngModel]="draft()!.title"
-                  (ngModelChange)="updateDraftTitle($event)"
-                  (keydown.enter)="saveDraft()"
-                  (keydown.escape)="cancelDraft()"
+                  [ngModel]="interaction.draft()!.title"
+                  (ngModelChange)="interaction.updateDraftTitle($event)"
+                  (keydown.enter)="interaction.saveDraft(hourHeight)"
+                  (keydown.escape)="interaction.cancelDraft()"
                 />
-                <div class="text-xs tabular-nums mt-auto" [style.color]="draftColor()" style="opacity: 0.5">{{ formatDraftTime() }}</div>
+                <div class="text-xs tabular-nums mt-auto" [style.color]="draftColor()" style="opacity: 0.5">{{ interaction.formatDraftTime() }}</div>
               </div>
-              <div class="absolute top-0 left-0 right-0 h-3 cursor-ns-resize" (mousedown)="onDraftResizeTopStart($event)">
+              <div class="absolute top-0 left-0 right-0 h-3 cursor-ns-resize" (mousedown)="interaction.onDraftResizeTopStart($event, hourHeight, viewStart())">
                 <div class="absolute top-1 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full" [style.background-color]="draftColor()" style="opacity: 0.3"></div>
               </div>
-              <div class="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize" (mousedown)="onDraftResizeStart($event)">
+              <div class="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize" (mousedown)="interaction.onDraftResizeStart($event, hourHeight)">
                 <div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full" [style.background-color]="draftColor()" style="opacity: 0.3"></div>
               </div>
             </div>
@@ -318,24 +317,24 @@ const HOUR_HEIGHT = 72;
     </div>
 
     <!-- Project popover -->
-    @if (popover(); as pop) {
+    @if (interaction.popover(); as pop) {
       <app-project-popover
         [x]="pop.x"
         [y]="pop.y"
-        [selectedCount]="selectedEntryIds().size"
+        [selectedCount]="interaction.selectedEntryIds().size"
         [commonProjectId]="commonProjectId()"
         [entryTimeLabel]="entryTimeLabel()"
-        (assign)="assignProject($event)"
-        (openDetails)="openEntryDetails()"
-        (delete)="deleteEntries()"
-        (close)="closePopover()"
+        (assign)="interaction.assignProject($event)"
+        (openDetails)="interaction.openEntryDetails()"
+        (delete)="interaction.deleteEntries()"
+        (close)="interaction.closePopover()"
       />
     }
 
     <app-recurring-confirm
-      [state]="recurringConfirm()"
-      (confirm)="confirmRecurringProject()"
-      (dismiss)="dismissRecurringConfirm()"
+      [state]="interaction.recurringConfirm()"
+      (confirm)="interaction.confirmRecurringProject()"
+      (dismiss)="interaction.dismissRecurringConfirm()"
     />
 
   `,
@@ -346,24 +345,20 @@ export class DayViewComponent {
   private readonly timeEntryStore = inject(TimeEntryStore);
   private readonly projectStore = inject(ProjectStore);
   private readonly calendarStore = inject(CalendarStore);
-  private readonly calendarSyncService = inject(CalendarSyncService);
   private readonly undoStore = inject(UndoStore);
   protected readonly vacationStore = inject(VacationStore);
+  protected readonly interaction = inject(CalendarInteractionService);
 
   readonly scrollContainer = viewChild<ElementRef>('scrollContainer');
   readonly draftInput = viewChild<ElementRef>('draftInput');
 
-  private readonly viewStart = computed(() => this.ui.viewStartHour());
+  readonly viewStart = computed(() => this.ui.viewStartHour());
   private readonly viewEnd = computed(() => this.ui.viewEndHour());
   readonly hourHeight = HOUR_HEIGHT;
   readonly hours = computed(() =>
     Array.from({ length: this.viewEnd() - this.viewStart() }, (_, i) => this.viewStart() + i)
   );
 
-  draft = signal<DraftEntry | null>(null);
-  popover = signal<PopoverState | null>(null);
-  selectedEntryIds = signal<Set<string>>(new Set());
-  recurringConfirm = signal<RecurringConfirmState | null>(null);
   readonly dayEntryCount = computed(() => this.entries().length);
 
   readonly defaultProject = computed(() => {
@@ -381,19 +376,12 @@ export class DayViewComponent {
   });
 
   readonly entryTimeLabel = computed(() => {
-    const ids = this.selectedEntryIds();
+    const ids = this.interaction.selectedEntryIds();
     if (ids.size !== 1) return '';
     const entry = this.entries().find(e => ids.has(e.id));
     if (!entry) return '';
     return `${formatTime(entry.start)}–${formatTime(entry.end)}`;
   });
-
-  private resizeStartY = 0;
-  private resizeStartEndHour = 0;
-  resizeOverride = signal<{ entryId: string; end: Date } | null>(null);
-  resizeTopOverride = signal<{ entryId: string; start: Date } | null>(null);
-  dragOverride = signal<DragOverride | null>(null);
-  private dragging = false;
 
   constructor() {
     afterNextRender(() => {
@@ -405,8 +393,8 @@ export class DayViewComponent {
 
   @HostListener('document:keydown.escape')
   onEscapeKey() {
-    if (this.popover()) this.closePopover();
-    else if (this.draft()) this.cancelDraft();
+    if (this.interaction.popover()) this.interaction.closePopover();
+    else if (this.interaction.draft()) this.interaction.cancelDraft();
   }
 
   readonly isActiveToday = computed(() => isSameDay(this.ui.activeDate(), new Date()));
@@ -436,11 +424,14 @@ export class DayViewComponent {
     return `${h.toFixed(1)}h gebucht`;
   });
 
-  protected dismissEmptyDraft() {
-    if (this.draft() && !this.draft()!.title?.trim()) {
-      this.draft.set(null);
-    }
-  }
+  readonly commonProjectId = computed((): string | undefined | null => {
+    const ids = this.interaction.selectedEntryIds();
+    if (ids.size === 0) return null;
+    const entries = this.timeEntryStore.entries().filter(e => ids.has(e.id));
+    if (entries.length === 0) return null;
+    const first = entries[0].projectId;
+    return entries.every(e => e.projectId === first) ? first : null;
+  });
 
   private getYInGrid(event: MouseEvent): number {
     const scrollEl = this.scrollContainer()?.nativeElement;
@@ -449,18 +440,18 @@ export class DayViewComponent {
     return event.clientY - scrollRect.top + scrollTop;
   }
 
+  // ─── View-specific: grid mouse down ─────────────────
   onGridMouseDown(event: MouseEvent) {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement;
     if (target.closest('input')) return;
 
-    // Save existing draft if it has a title
-    if (this.draft()?.title?.trim()) { this.saveDraft(); }
+    if (this.interaction.draft()?.title?.trim()) { this.interaction.saveDraft(HOUR_HEIGHT); }
 
     const y = this.getYInGrid(event);
     const hour = snapToHalfHour(this.viewStart() + y / HOUR_HEIGHT);
 
-    this.draft.set({ date: this.ui.activeDate(), startHour: hour, endHour: hour + 0.5, title: '' });
+    this.interaction.draft.set({ date: this.ui.activeDate(), startHour: hour, endHour: hour + 0.5, title: '' });
     setTimeout(() => this.draftInput()?.nativeElement?.focus(), 0);
 
     let lastClientY = event.clientY;
@@ -471,8 +462,8 @@ export class DayViewComponent {
       lastClientY = e.clientY;
       const curY = this.getYInGrid(e);
       const curHour = snapToGrid(this.viewStart() + curY / HOUR_HEIGHT, SNAP_MINUTES);
-      const d = this.draft()!;
-      this.draft.set({ ...d, endHour: Math.min(Math.max(curHour, d.startHour + 0.25), this.viewEnd()) });
+      const d = this.interaction.draft()!;
+      this.interaction.draft.set({ ...d, endHour: Math.min(Math.max(curHour, d.startHour + 0.25), this.viewEnd()) });
     };
     const onUp = () => {
       stopScroll?.();
@@ -484,113 +475,7 @@ export class DayViewComponent {
     document.addEventListener('mouseup', onUp);
   }
 
-  getDraftTop() { return (this.draft()!.startHour - this.viewStart()) * HOUR_HEIGHT; }
-  getDraftHeight() { const d = this.draft()!; return Math.max((d.endHour - d.startHour) * HOUR_HEIGHT, 34); }
-  formatDraftTime() { const d = this.draft()!; return `${hourToStr(d.startHour)}–${hourToStr(d.endHour)}`; }
-  updateDraftTitle(t: string) { const d = this.draft(); if (d) this.draft.set({ ...d, title: t }); }
-
-  saveDraft() {
-    const d = this.draft(); if (!d) return;
-    const start = new Date(d.date); start.setHours(Math.floor(d.startHour), (d.startHour % 1) * 60, 0, 0);
-    const end = new Date(d.date); end.setHours(Math.floor(d.endHour), (d.endHour % 1) * 60, 0, 0);
-    const projectId = this.ui.defaultProjectId() ?? undefined;
-    this.timeEntryStore.addEntry({ title: d.title || 'Ohne Beschreibung', start, end, source: 'manual', projectId });
-    this.draft.set(null);
-  }
-
-  cancelDraft() { this.draft.set(null); }
-
-  onDraftResizeTopStart(event: MouseEvent) {
-    event.stopPropagation(); event.preventDefault();
-    this.resizeStartY = event.clientY;
-    const startStartHour = this.draft()!.startHour;
-    const onMove = (e: MouseEvent) => {
-      const d = this.draft()!;
-      const newStart = snapToGrid(startStartHour + (e.clientY - this.resizeStartY) / HOUR_HEIGHT, SNAP_MINUTES);
-      this.draft.set({ ...d, startHour: Math.min(Math.max(newStart, this.viewStart()), d.endHour - 0.25) });
-    };
-    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
-  }
-
-  onDraftResizeStart(event: MouseEvent) {
-    event.stopPropagation(); event.preventDefault();
-    this.resizeStartY = event.clientY;
-    this.resizeStartEndHour = this.draft()!.endHour;
-    const onMove = (e: MouseEvent) => {
-      const d = this.draft()!;
-      const newEnd = snapToGrid(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / HOUR_HEIGHT, SNAP_MINUTES);
-      this.draft.set({ ...d, endHour: Math.max(newEnd, d.startHour + 0.25) });
-    };
-    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  }
-
-  private resizeStartStartHour = 0;
-
-  onResizeTopStart(event: MouseEvent, entry: TimeEntry) {
-    event.stopPropagation(); event.preventDefault();
-    this.resizeStartY = event.clientY;
-    const startDate = new Date(entry.start);
-    this.resizeStartStartHour = startDate.getHours() + startDate.getMinutes() / 60;
-    let lastClientY = event.clientY;
-    const container = this.scrollContainer()?.nativeElement;
-    const stopScroll = container ? startAutoScroll(container, () => lastClientY) : null;
-    const onMove = (e: MouseEvent) => {
-      lastClientY = e.clientY;
-      const endDate = new Date(entry.end);
-      const endHour = endDate.getHours() + endDate.getMinutes() / 60;
-      const newStartHour = snapToGrid(this.resizeStartStartHour + (e.clientY - this.resizeStartY) / HOUR_HEIGHT, SNAP_MINUTES);
-      const clampedStart = Math.min(Math.max(newStartHour, this.viewStart()), endHour - 0.25);
-      const newStart = new Date(entry.start); newStart.setHours(Math.floor(clampedStart), (clampedStart % 1) * 60, 0, 0);
-      this.resizeTopOverride.set({ entryId: entry.id, start: newStart });
-    };
-    const onUp = () => {
-      stopScroll?.();
-      const override = this.resizeTopOverride();
-      if (override) {
-        this.timeEntryStore.updateEntry(override.entryId, { start: override.start });
-        this.resizeTopOverride.set(null);
-      }
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
-  }
-
-  onResizeStart(event: MouseEvent, entry: TimeEntry) {
-    event.stopPropagation(); event.preventDefault();
-    this.resizeStartY = event.clientY;
-    const ed = new Date(entry.end);
-    this.resizeStartEndHour = ed.getHours() + ed.getMinutes() / 60;
-    let lastClientY = event.clientY;
-    const container = this.scrollContainer()?.nativeElement;
-    const stopScroll = container ? startAutoScroll(container, () => lastClientY) : null;
-    const onMove = (e: MouseEvent) => {
-      lastClientY = e.clientY;
-      const sd = new Date(entry.start);
-      const startH = sd.getHours() + sd.getMinutes() / 60;
-      const newEnd = snapToGrid(this.resizeStartEndHour + (e.clientY - this.resizeStartY) / HOUR_HEIGHT, SNAP_MINUTES);
-      const clamped = Math.max(newEnd, startH + 0.25);
-      const ne = new Date(entry.end); ne.setHours(Math.floor(clamped), (clamped % 1) * 60, 0, 0);
-      this.resizeOverride.set({ entryId: entry.id, end: ne });
-    };
-    const onUp = () => {
-      stopScroll?.();
-      const override = this.resizeOverride();
-      if (override) {
-        this.timeEntryStore.updateEntry(override.entryId, { end: override.end });
-        this.resizeOverride.set(null);
-      }
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  }
-
-  // ─── Entry drag ──────────────────────────────────────
+  // ─── View-specific: entry drag (single-day) ─────────
   onEntryMouseDown(event: MouseEvent, entry: TimeEntry) {
     event.stopPropagation();
     if (event.button !== 0) return;
@@ -617,10 +502,10 @@ export class DayViewComponent {
       if (!dragStarted) {
         if (Math.abs(e.clientX - startX) < THRESHOLD && Math.abs(e.clientY - startY) < THRESHOLD) return;
         dragStarted = true;
-        this.dragging = true;
-        if (this.clickTimer) { clearTimeout(this.clickTimer); this.clickTimer = null; }
-        this.closePopover();
-        this.dismissEmptyDraft();
+        this.interaction.isDragging = true;
+        this.interaction.clearClickTimer();
+        this.interaction.closePopover();
+        this.interaction.dismissEmptyDraft();
         stopScroll = container ? startAutoScroll(container, () => lastClientY) : null;
         document.body.style.cursor = 'grabbing';
         document.body.style.userSelect = 'none';
@@ -636,7 +521,7 @@ export class DayViewComponent {
       newStart.setHours(Math.floor(clampedHour), Math.round((clampedHour % 1) * 60), 0, 0);
       const newEnd = new Date(newStart.getTime() + durationMs);
 
-      this.dragOverride.set({ entryId: entry.id, start: newStart, end: newEnd });
+      this.interaction.dragOverride.set({ entryId: entry.id, start: newStart, end: newEnd });
     };
 
     const onUp = () => {
@@ -647,12 +532,12 @@ export class DayViewComponent {
       document.body.style.userSelect = '';
 
       if (dragStarted) {
-        const override = this.dragOverride();
+        const override = this.interaction.dragOverride();
         if (override) {
           this.timeEntryStore.updateEntry(override.entryId, { start: override.start, end: override.end });
-          this.dragOverride.set(null);
+          this.interaction.dragOverride.set(null);
         }
-        setTimeout(() => { this.dragging = false; }, 0);
+        setTimeout(() => { this.interaction.isDragging = false; }, 0);
       }
     };
 
@@ -660,174 +545,33 @@ export class DayViewComponent {
     document.addEventListener('mouseup', onUp);
   }
 
-  private clickTimer: ReturnType<typeof setTimeout> | null = null;
-
-  onEntryClick(event: MouseEvent, entry: TimeEntry) {
-    event.stopPropagation();
-    if (this.dragging) return;
-    this.dismissEmptyDraft();
-    const x = Math.min(event.clientX, window.innerWidth - 220);
-    const y = Math.min(event.clientY, window.innerHeight - 300);
-
-    if (event.metaKey) {
-      const current = new Set(this.selectedEntryIds());
-      if (current.has(entry.id)) {
-        current.delete(entry.id);
-      } else {
-        current.add(entry.id);
-      }
-      this.selectedEntryIds.set(current);
-      if (current.size > 0) {
-        this.popover.set({ x, y });
-      } else {
-        this.popover.set(null);
-      }
-      return;
-    }
-
-    if (this.clickTimer) clearTimeout(this.clickTimer);
-    this.clickTimer = setTimeout(() => {
-      this.clickTimer = null;
-      this.selectedEntryIds.set(new Set([entry.id]));
-      this.popover.set({ x, y });
-    }, 250);
+  // ─── Delegated methods with view-specific params ────
+  onResizeTopStart(event: MouseEvent, entry: TimeEntry) {
+    this.interaction.onResizeTopStart(event, entry, HOUR_HEIGHT, this.viewStart(), this.scrollContainer()?.nativeElement ?? null);
   }
 
-  readonly commonProjectId = computed((): string | undefined | null => {
-    const ids = this.selectedEntryIds();
-    if (ids.size === 0) return null;
-    const entries = this.timeEntryStore.entries().filter(e => ids.has(e.id));
-    if (entries.length === 0) return null;
-    const first = entries[0].projectId;
-    return entries.every(e => e.projectId === first) ? first : null;
-  });
-
-  assignProject(projectId: string | undefined) {
-    const entries = this.timeEntryStore.entries().filter(e => this.selectedEntryIds().has(e.id));
-    for (const entryId of this.selectedEntryIds()) {
-      this.timeEntryStore.assignProject(entryId, projectId);
-    }
-    // Check if any selected entry is recurring and show confirmation
-    if (projectId) {
-      const recurringEntry = entries.find(e => e.recurringEventId);
-      if (recurringEntry?.recurringEventId) {
-        const project = this.projectStore.projectMap().get(projectId);
-        this.recurringConfirm.set({
-          recurringEventId: recurringEntry.recurringEventId,
-          projectId,
-          projectName: project ? getProjectDisplayName(project) : projectId,
-          projectColor: project?.color ?? '#6366F1',
-        });
-      }
-    }
-    this.closePopover();
+  onResizeStart(event: MouseEvent, entry: TimeEntry) {
+    this.interaction.onResizeStart(event, entry, HOUR_HEIGHT, this.scrollContainer()?.nativeElement ?? null);
   }
 
-  confirmRecurringProject() {
-    const rc = this.recurringConfirm();
-    if (rc) {
-      this.timeEntryStore.setRecurringProjectMapping(rc.recurringEventId, rc.projectId);
-    }
-    this.recurringConfirm.set(null);
-  }
-
-  dismissRecurringConfirm() {
-    this.recurringConfirm.set(null);
-  }
-
-  deleteEntries() {
-    const ids = [...this.selectedEntryIds()];
-    const entries = this.timeEntryStore.entries().filter(e => ids.includes(e.id));
-    if (entries.length > 0) {
-      this.undoStore.pushDelete(entries);
-      this.timeEntryStore.removeEntries(ids);
-    }
-    this.closePopover();
-  }
-
-  openEntryDetails() {
-    const id = [...this.selectedEntryIds()][0];
-    if (id) this.ui.selectEntry(id);
-    this.closePopover();
-  }
-
-  closePopover() {
-    this.popover.set(null);
-    this.selectedEntryIds.set(new Set());
-  }
-
-  onEntryDblClick(event: MouseEvent, entry: TimeEntry) {
-    event.stopPropagation();
-    if (this.dragging) return;
-    if (this.clickTimer) { clearTimeout(this.clickTimer); this.clickTimer = null; }
-    this.dismissEmptyDraft();
-    this.closePopover();
-    this.ui.selectEntry(entry.id);
-  }
-
-  onGoogleEventClick(event: MouseEvent, calEvent: CalendarEvent) {
-    event.stopPropagation();
-    this.dismissEmptyDraft();
-    this.calendarSyncService.importEvent(calEvent);
-  }
-
-  dismissGoogleEvent(event: MouseEvent, eventId: string) {
-    event.stopPropagation();
-    this.dismissEmptyDraft();
-    this.timeEntryStore.dismissGoogleEvent(eventId);
-  }
-
-  // ─── Gap suggestions ──────────────────────────────────
   onGapClick(gap: GapSuggestion) {
-    if (this.draft()?.title?.trim()) { this.saveDraft(); }
-    const start = new Date(gap.start);
-    const end = new Date(gap.end);
-    this.draft.set({
-      date: this.ui.activeDate(),
-      startHour: start.getHours() + start.getMinutes() / 60,
-      endHour: end.getHours() + end.getMinutes() / 60,
-      title: '',
-    });
-    setTimeout(() => this.draftInput()?.nativeElement?.focus(), 0);
+    this.interaction.onGapClick(gap, this.ui.activeDate(), () => this.draftInput()?.nativeElement?.focus());
   }
 
-  onGapPause(event: MouseEvent, gap: GapSuggestion) {
-    event.stopPropagation();
-    this.timeEntryStore.addEntry({
-      title: 'Pause',
-      start: gap.start,
-      end: gap.end,
-      source: 'manual',
-      pause: true,
-    });
+  getDurationMinutes(entry: TimeEntry) {
+    const start = this.interaction.getEffectiveStart(entry);
+    const end = this.interaction.getEffectiveEnd(entry);
+    return (new Date(end).getTime() - new Date(start).getTime()) / 60000;
   }
 
-  getGapMinutes(gap: GapSuggestion): number {
-    return Math.round((new Date(gap.end).getTime() - new Date(gap.start).getTime()) / 60000);
-  }
-
-  getDurationMinutes(entry: TimeEntry) { const start = this.getEffectiveStart(entry); const end = this.getEffectiveEnd(entry); return (new Date(end).getTime() - new Date(start).getTime()) / 60000; }
-  getTopPosition(start: Date) { const d = new Date(start); return (d.getHours() + d.getMinutes() / 60 - this.viewStart()) * HOUR_HEIGHT; }
-  getBlockHeight(start: Date, end: Date) { return Math.max((new Date(end).getTime() - new Date(start).getTime()) / 3600000 * HOUR_HEIGHT, 34); }
-  getEffectiveStart(entry: TimeEntry): Date {
-    const drag = this.dragOverride();
-    if (drag && drag.entryId === entry.id) return drag.start;
-    const override = this.resizeTopOverride();
-    return override && override.entryId === entry.id ? override.start : entry.start;
-  }
-  getEffectiveEnd(entry: TimeEntry): Date {
-    const drag = this.dragOverride();
-    if (drag && drag.entryId === entry.id) return drag.end;
-    const override = this.resizeOverride();
-    return override && override.entryId === entry.id ? override.end : entry.end;
-  }
-  getEntryColor(entry: TimeEntry) { return calcEntryColor(entry, this.projectStore.projectMap()); }
-  getProject(entry: TimeEntry): Project | null { return calcProject(entry, this.projectStore.projectMap()); }
+  getTopPosition(start: Date) { return this.interaction.getTopPosition(start, this.viewStart(), HOUR_HEIGHT); }
+  getBlockHeight(start: Date, end: Date) { return this.interaction.getBlockHeight(start, end, HOUR_HEIGHT, MIN_BLOCK_HEIGHT); }
   getDisplayName = getProjectDisplayName;
   formatTime = formatTime;
 
+  // ─── View-specific: clearView, toggleVacation ───────
   clearView() {
-    this.dismissEmptyDraft();
+    this.interaction.dismissEmptyDraft();
     const entries = this.entries();
     if (entries.length > 0) {
       this.undoStore.pushDelete(entries);
@@ -839,7 +583,7 @@ export class DayViewComponent {
   }
 
   toggleVacation() {
-    this.dismissEmptyDraft();
+    this.interaction.dismissEmptyDraft();
     if (!this.isVacation()) {
       const entries = this.entries();
       if (entries.length > 0) {
@@ -857,5 +601,4 @@ export class DayViewComponent {
   getEntryWidth(entryId: string): string {
     return calcEntryWidth(this.entryLayout(), entryId, 24, 2);
   }
-
 }
