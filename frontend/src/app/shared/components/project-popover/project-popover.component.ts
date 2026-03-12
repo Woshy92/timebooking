@@ -28,8 +28,11 @@ import { getProjectDisplayName } from '../../../domain/models/project.model';
         >
           <div class="w-3 h-3 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
           <span class="text-gray-800 truncate">{{ getDisplayName(project) }}</span>
+          @if (getHours(project.id); as h) {
+            <span class="text-[10px] tabular-nums text-gray-400 ml-auto flex-shrink-0">{{ h }}</span>
+          }
           @if (commonProjectId() === project.id) {
-            <svg class="w-3.5 h-3.5 text-indigo-500 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
             </svg>
           }
@@ -72,9 +75,19 @@ export class ProjectPopoverComponent {
   y = input.required<number>();
   selectedCount = input.required<number>();
   commonProjectId = input.required<string | undefined | null>();
+  projectHours = input<Map<string, number>>(new Map());
 
   assign = output<string>();
   openDetails = output<void>();
   delete = output<void>();
   close = output<void>();
+
+  getHours(projectId: string): string {
+    const h = this.projectHours().get(projectId);
+    if (!h) return '';
+    const totalMinutes = Math.round(h * 60);
+    const hrs = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return `${hrs}:${String(mins).padStart(2, '0')}`;
+  }
 }

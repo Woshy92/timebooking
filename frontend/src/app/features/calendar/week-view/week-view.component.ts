@@ -20,6 +20,7 @@ import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as c
 import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
 import { getEntryColor as calcEntryColor, getEntryBg as calcEntryBg, getEntryTextColor as calcEntryTextColor, getProject as calcProject } from '../../../shared/utils/entry-styling';
 import { startAutoScroll } from '../../../shared/utils/auto-scroll';
+import { findGapSuggestions, GapSuggestion } from '../../../shared/utils/gap-filler';
 
 const HOUR_HEIGHT = 64;
 
@@ -166,6 +167,40 @@ const HOUR_HEIGHT = 64;
               </div>
             }
 
+            <!-- Gap suggestions -->
+            @if (uiStore.highlightGaps()) {
+              @for (gap of day.gapSuggestions; track gap.id) {
+                <div
+                  class="absolute left-1.5 right-1.5 rounded-md px-2 py-1 text-[11px] cursor-pointer z-[3]
+                         bg-amber-50/80 border border-dashed border-amber-300 hover:border-amber-500
+                         hover:shadow-md transition-all group"
+                  [style.top.px]="getTopPosition(gap.start)"
+                  [style.height.px]="getBlockHeight(gap.start, gap.end)"
+                  [style.min-height.px]="26"
+                  (mousedown)="$event.stopPropagation()"
+                  (click)="onGapClick(gap)"
+                >
+                  <div class="flex items-start gap-1 h-full overflow-hidden">
+                    <svg class="w-3 h-3 text-amber-400 group-hover:text-amber-600 mt-[1px] flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    <div class="min-w-0 flex flex-col overflow-hidden flex-1">
+                      <div class="font-medium text-amber-600 group-hover:text-amber-700 truncate flex-shrink-0 transition-colors">{{ getGapMinutes(gap) }} Min</div>
+                      <div class="text-amber-400 text-[10px] tabular-nums flex-shrink overflow-hidden leading-tight">{{ formatTime(gap.start) }}–{{ formatTime(gap.end) }}</div>
+                    </div>
+                    <button
+                      class="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 rounded text-[10px] font-medium
+                             bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-gray-700 transition-all flex-shrink-0"
+                      title="Als Pause markieren"
+                      (click)="onGapPause($event, gap)"
+                    >
+                      Pause
+                    </button>
+                  </div>
+                </div>
+              }
+            }
+
             <!-- Google Calendar events -->
             @for (event of day.googleEvents; track event.id) {
               <div
@@ -307,6 +342,7 @@ const HOUR_HEIGHT = 64;
         [y]="pop.y"
         [selectedCount]="selectedEntryIds().size"
         [commonProjectId]="commonProjectId()"
+        [projectHours]="projectHoursMap()"
         (assign)="assignProject($event)"
         (openDetails)="openEntryDetails()"
         (delete)="deleteEntries()"
@@ -409,9 +445,10 @@ export class WeekViewComponent {
         (sum, e) => sum + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000, 0
       );
       const isVacation = vacationSet.has(format(date, 'yyyy-MM-dd'));
+      const gapSuggestions = isVacation ? [] : findGapSuggestions(dayEntries);
       return {
         date, dayName: format(date, 'EEE', { locale: de }), dayNumber: format(date, 'd'),
-        isToday: isSameDay(date, today), entries: dayEntries, googleEvents: dayGoogleEvents, totalHours, isVacation,
+        isToday: isSameDay(date, today), entries: dayEntries, googleEvents: dayGoogleEvents, totalHours, isVacation, gapSuggestions,
       };
     });
   });
@@ -580,6 +617,35 @@ export class WeekViewComponent {
     event.stopPropagation();
     this.dismissEmptyDraft();
     this.timeEntryStore.dismissGoogleEvent(eventId);
+  }
+
+  // ─── Gap suggestions ──────────────────────────────────
+  onGapClick(gap: GapSuggestion) {
+    if (this.draft()?.title?.trim()) { this.saveDraft(); }
+    const start = new Date(gap.start);
+    const end = new Date(gap.end);
+    this.draft.set({
+      date: start,
+      startHour: start.getHours() + start.getMinutes() / 60,
+      endHour: end.getHours() + end.getMinutes() / 60,
+      title: '',
+    });
+    setTimeout(() => this.draftInput()?.nativeElement?.focus(), 0);
+  }
+
+  onGapPause(event: MouseEvent, gap: GapSuggestion) {
+    event.stopPropagation();
+    this.timeEntryStore.addEntry({
+      title: 'Pause',
+      start: gap.start,
+      end: gap.end,
+      source: 'manual',
+      pause: true,
+    });
+  }
+
+  getGapMinutes(gap: GapSuggestion): number {
+    return Math.round((new Date(gap.end).getTime() - new Date(gap.start).getTime()) / 60000);
   }
 
   // ─── Entry drag ──────────────────────────────────────
@@ -850,6 +916,14 @@ export class WeekViewComponent {
   readonly weekTotalHours = computed(() =>
     this.weekProjectSummary().reduce((sum, p) => sum + p.hours, 0)
   );
+
+  readonly projectHoursMap = computed(() => {
+    const map = new Map<string, number>();
+    for (const ps of this.weekProjectSummary()) {
+      if (ps.pid !== '__none__') map.set(ps.pid, ps.hours);
+    }
+    return map;
+  });
 
   readonly dayProjectSummary = computed(() => {
     const projectMap = this.projectStore.projectMap();

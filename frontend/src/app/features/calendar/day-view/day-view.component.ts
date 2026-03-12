@@ -21,6 +21,7 @@ import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as c
 import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
 import { getEntryColor as calcEntryColor, getProject as calcProject } from '../../../shared/utils/entry-styling';
 import { startAutoScroll } from '../../../shared/utils/auto-scroll';
+import { findGapSuggestions, GapSuggestion } from '../../../shared/utils/gap-filler';
 
 const HOUR_HEIGHT = 72;
 
@@ -106,6 +107,40 @@ const HOUR_HEIGHT = 72;
                 <div class="flex-1 h-[2px] bg-red-500/70"></div>
               </div>
             </div>
+          }
+
+          <!-- Gap suggestions -->
+          @if (ui.highlightGaps()) {
+            @for (gap of gapSuggestions(); track gap.id) {
+              <div
+                class="absolute left-3 right-3 rounded-lg px-3 py-2 cursor-pointer z-[3]
+                       bg-amber-50/80 border border-dashed border-amber-300 hover:border-amber-500
+                       hover:shadow-md transition-all group"
+                [style.top.px]="getTopPosition(gap.start)"
+                [style.height.px]="getBlockHeight(gap.start, gap.end)"
+                [style.min-height.px]="34"
+                (mousedown)="$event.stopPropagation()"
+                (click)="onGapClick(gap)"
+              >
+                <div class="flex items-start gap-2 h-full overflow-hidden">
+                  <svg class="w-3.5 h-3.5 text-amber-400 group-hover:text-amber-600 mt-[1px] flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                  </svg>
+                  <div class="min-w-0 flex-1">
+                    <div class="font-medium text-amber-600 group-hover:text-amber-700 transition-colors">{{ getGapMinutes(gap) }} Min verfügbar</div>
+                    <div class="text-amber-400 text-xs tabular-nums">{{ formatTime(gap.start) }}–{{ formatTime(gap.end) }}</div>
+                  </div>
+                  <button
+                    class="opacity-0 group-hover:opacity-100 px-2 py-0.5 rounded text-[11px] font-medium
+                           bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-gray-700 transition-all flex-shrink-0"
+                    title="Als Pause markieren"
+                    (click)="onGapPause($event, gap)"
+                  >
+                    Pause
+                  </button>
+                </div>
+              </div>
+            }
           }
 
           @for (event of googleEvents(); track event.id) {
@@ -240,6 +275,7 @@ const HOUR_HEIGHT = 72;
         [y]="pop.y"
         [selectedCount]="selectedEntryIds().size"
         [commonProjectId]="commonProjectId()"
+        [projectHours]="projectHoursMap()"
         (assign)="assignProject($event)"
         (openDetails)="openEntryDetails()"
         (delete)="deleteEntries()"
@@ -284,6 +320,16 @@ export class DayViewComponent {
     return result;
   });
 
+  readonly projectHoursMap = computed(() => {
+    const map = new Map<string, number>();
+    for (const e of this.entries()) {
+      if (e.projectId) {
+        map.set(e.projectId, (map.get(e.projectId) ?? 0) + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000);
+      }
+    }
+    return map;
+  });
+
   private resizeStartY = 0;
   private resizeStartEndHour = 0;
   resizeOverride = signal<{ entryId: string; end: Date } | null>(null);
@@ -313,6 +359,9 @@ export class DayViewComponent {
 
   readonly entries = computed(() =>
     this.timeEntryStore.entries().filter(e => isSameDay(new Date(e.start), this.ui.activeDate()))
+  );
+  readonly gapSuggestions = computed(() =>
+    this.isVacation() ? [] : findGapSuggestions(this.entries())
   );
   readonly googleEvents = computed(() => {
     const bookedIds = new Set(this.timeEntryStore.entries().filter(e => e.googleEventId).map(e => e.googleEventId));
@@ -641,6 +690,35 @@ export class DayViewComponent {
     event.stopPropagation();
     this.dismissEmptyDraft();
     this.timeEntryStore.dismissGoogleEvent(eventId);
+  }
+
+  // ─── Gap suggestions ──────────────────────────────────
+  onGapClick(gap: GapSuggestion) {
+    if (this.draft()?.title?.trim()) { this.saveDraft(); }
+    const start = new Date(gap.start);
+    const end = new Date(gap.end);
+    this.draft.set({
+      date: this.ui.activeDate(),
+      startHour: start.getHours() + start.getMinutes() / 60,
+      endHour: end.getHours() + end.getMinutes() / 60,
+      title: '',
+    });
+    setTimeout(() => this.draftInput()?.nativeElement?.focus(), 0);
+  }
+
+  onGapPause(event: MouseEvent, gap: GapSuggestion) {
+    event.stopPropagation();
+    this.timeEntryStore.addEntry({
+      title: 'Pause',
+      start: gap.start,
+      end: gap.end,
+      source: 'manual',
+      pause: true,
+    });
+  }
+
+  getGapMinutes(gap: GapSuggestion): number {
+    return Math.round((new Date(gap.end).getTime() - new Date(gap.start).getTime()) / 60000);
   }
 
   getDurationMinutes(entry: TimeEntry) { const start = this.getEffectiveStart(entry); const end = this.getEffectiveEnd(entry); return (new Date(end).getTime() - new Date(start).getTime()) / 60000; }
