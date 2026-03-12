@@ -2,6 +2,7 @@ import { computed, inject } from '@angular/core';
 import { signalStore, withState, withMethods, withComputed, withHooks, patchState } from '@ngrx/signals';
 import { TimeEntry, CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../domain/models/time-entry.model';
 import { STORAGE_PORT } from '../domain/ports/storage.port';
+import { computeGapFills } from '../shared/utils/gap-filler';
 
 interface TimeEntryState {
   entries: TimeEntry[];
@@ -30,7 +31,7 @@ export const TimeEntryStore = signalStore(
       return map;
     }),
     totalHours: computed(() =>
-      entries().reduce((sum, e) => sum + (e.end.getTime() - e.start.getTime()) / 3600000, 0)
+      entries().filter(e => !e.pause).reduce((sum, e) => sum + (e.end.getTime() - e.start.getTime()) / 3600000, 0)
     ),
   })),
   withMethods((store) => {
@@ -99,6 +100,11 @@ export const TimeEntryStore = signalStore(
           }),
         });
       },
+      clearDismissedGoogleEventIds() {
+        storage.clearDismissedGoogleEventIds().subscribe({
+          next: () => patchState(store, { dismissedGoogleEventIds: [] }),
+        });
+      },
       assignProject(entryId: string, projectId: string | undefined) {
         const entry = store.entries().find(e => e.id === entryId);
         if (!entry) return;
@@ -110,6 +116,30 @@ export const TimeEntryStore = signalStore(
       },
     };
   }),
+  withMethods((store) => ({
+    fillGaps() {
+      const entries = store.entries();
+      if (entries.length === 0) return;
+
+      const byDay = new Map<string, TimeEntry[]>();
+      for (const e of entries) {
+        const dayKey = new Date(e.start).toDateString();
+        const list = byDay.get(dayKey) ?? [];
+        list.push(e);
+        byDay.set(dayKey, list);
+      }
+
+      for (const dayEntries of byDay.values()) {
+        const adjustments = computeGapFills(dayEntries);
+        for (const adj of adjustments) {
+          store.updateEntry(adj.id, {
+            ...(adj.start && { start: adj.start }),
+            ...(adj.end && { end: adj.end }),
+          });
+        }
+      }
+    },
+  })),
   withHooks({
     onInit(store) {
       store.loadDismissedGoogleEventIds();
