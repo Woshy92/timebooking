@@ -19,3 +19,10 @@ export interface DragOverride {
   start: Date;
   end: Date;
 }
+
+export interface RecurringConfirmState {
+  recurringEventId: string;
+  projectId: string;
+  projectName: string;
+  projectColor: string;
+}

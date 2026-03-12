@@ -16,7 +16,8 @@ import { CalendarEvent } from '../../../domain/models/calendar-event.model';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
 import { ClearConfirmPopoverComponent } from '../../../shared/components/clear-confirm-popover/clear-confirm-popover.component';
 import { ProjectPopoverComponent } from '../../../shared/components/project-popover/project-popover.component';
-import { DraftEntry, PopoverState, DragOverride, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
+import { DraftEntry, PopoverState, DragOverride, RecurringConfirmState, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
+import { RecurringConfirmComponent } from '../../../shared/components/recurring-confirm/recurring-confirm.component';
 import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as calcEntryWidth } from '../../../shared/utils/overlap-layout';
 import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
 import { getEntryColor as calcEntryColor, getProject as calcProject } from '../../../shared/utils/entry-styling';
@@ -28,7 +29,7 @@ const HOUR_HEIGHT = 72;
 @Component({
   selector: 'app-day-view',
   standalone: true,
-  imports: [DurationPipe, FormsModule, ProjectPillsBarComponent, ClearConfirmPopoverComponent, ProjectPopoverComponent],
+  imports: [DurationPipe, FormsModule, ProjectPillsBarComponent, ClearConfirmPopoverComponent, ProjectPopoverComponent, RecurringConfirmComponent],
   template: `
     <div class="flex flex-col h-full bg-white">
       <!-- Day header -->
@@ -331,36 +332,11 @@ const HOUR_HEIGHT = 72;
       />
     }
 
-    <!-- Recurring project confirmation -->
-    @if (recurringConfirm(); as rc) {
-      <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/20"
-           (click)="dismissRecurringConfirm()">
-        <div class="bg-white rounded-lg shadow-xl border border-gray-200 p-4 max-w-sm mx-4"
-             (click)="$event.stopPropagation()">
-          <div class="flex items-center gap-2 mb-2">
-            <svg class="w-5 h-5 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-            <span class="text-sm font-semibold text-gray-900">Serientermin</span>
-          </div>
-          <p class="text-sm text-gray-600 mb-3">
-            Soll <span class="font-medium" [style.color]="rc.projectColor">{{ rc.projectName }}</span>
-            als Standard für zukünftige Termine dieser Serie gelten?
-          </p>
-          <div class="flex gap-2 justify-end">
-            <button (click)="dismissRecurringConfirm()"
-                    class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors">
-              Nein
-            </button>
-            <button (click)="confirmRecurringProject()"
-                    class="px-3 py-1.5 text-xs font-medium text-white bg-indigo-500 rounded-md hover:bg-indigo-600 transition-colors">
-              Ja, für zukünftige
-            </button>
-          </div>
-        </div>
-      </div>
-    }
+    <app-recurring-confirm
+      [state]="recurringConfirm()"
+      (confirm)="confirmRecurringProject()"
+      (dismiss)="dismissRecurringConfirm()"
+    />
 
   `,
   styles: [`:host { display: flex; flex-direction: column; height: 100%; }`],
@@ -387,7 +363,7 @@ export class DayViewComponent {
   draft = signal<DraftEntry | null>(null);
   popover = signal<PopoverState | null>(null);
   selectedEntryIds = signal<Set<string>>(new Set());
-  recurringConfirm = signal<{ recurringEventId: string; projectId: string; projectName: string; projectColor: string } | null>(null);
+  recurringConfirm = signal<RecurringConfirmState | null>(null);
   readonly dayEntryCount = computed(() => this.entries().length);
 
   readonly defaultProject = computed(() => {
