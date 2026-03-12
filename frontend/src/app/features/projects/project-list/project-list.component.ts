@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { ProjectStore } from '../../../state/project.store';
+import { TimeEntryStore } from '../../../state/time-entry.store';
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
 import { ProjectFormComponent } from '../project-form/project-form.component';
 import { Project, CreateProjectDTO, getProjectDisplayName } from '../../../domain/models/project.model';
@@ -102,16 +103,54 @@ import { Project, CreateProjectDTO, getProjectDisplayName } from '../../../domai
         />
       </app-modal>
     }
+
+    @if (archiveConfirm(); as ac) {
+      <div class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" (click)="archiveConfirm.set(null)">
+        <div class="bg-white rounded-xl shadow-xl p-6 max-w-sm mx-4" (click)="$event.stopPropagation()">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Projekt archivieren</h3>
+          <p class="text-sm text-gray-600 mb-1">
+            „{{ getDisplayName(ac.project) }}" wird archiviert.
+          </p>
+          @if (ac.mappingCount > 0) {
+            <div class="flex items-start gap-2 mt-3 px-3 py-2.5 bg-amber-50 rounded-lg border border-amber-100">
+              <svg class="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+              </svg>
+              <p class="text-sm text-amber-800">
+                {{ ac.mappingCount }} automatische {{ ac.mappingCount === 1 ? 'Zuordnung wird' : 'Zuordnungen werden' }} dadurch ungültig.
+              </p>
+            </div>
+          }
+          <div class="flex justify-end gap-2 mt-5">
+            <button
+              (click)="archiveConfirm.set(null)"
+              class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Abbrechen
+            </button>
+            <button
+              (click)="doArchive(ac.project)"
+              class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+            >
+              Archivieren
+            </button>
+          </div>
+        </div>
+      </div>
+    }
   `,
 })
 export class ProjectListComponent {
   protected readonly projectStore = inject(ProjectStore);
+  private readonly timeEntryStore = inject(TimeEntryStore);
   protected readonly getDisplayName = getProjectDisplayName;
 
   isFormOpen = signal(false);
   editingProject = signal<Project | null>(null);
   draggedId = signal<string | null>(null);
   dragOverId = signal<string | null>(null);
+  archiveConfirm = signal<{ project: Project; mappingCount: number } | null>(null);
 
   openForm(project: Project | null) {
     this.editingProject.set(project);
@@ -133,7 +172,18 @@ export class ProjectListComponent {
   }
 
   onArchive(project: Project) {
+    const mappingCount = this.timeEntryStore.recurringProjectMappings()
+      .filter(m => m.projectId === project.id).length;
+    if (mappingCount > 0) {
+      this.archiveConfirm.set({ project, mappingCount });
+    } else {
+      this.projectStore.updateProject(project.id, { archived: true });
+    }
+  }
+
+  doArchive(project: Project) {
     this.projectStore.updateProject(project.id, { archived: true });
+    this.archiveConfirm.set(null);
   }
 
   onDragStart(event: DragEvent, id: string) {
