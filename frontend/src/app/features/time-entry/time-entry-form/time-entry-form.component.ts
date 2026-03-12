@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output, signal, OnInit } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ProjectStore } from '../../../state/project.store';
 import { TimeEntry, CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../../../domain/models/time-entry.model';
@@ -204,7 +204,7 @@ const MAX_VISIBLE_ATTENDEES = 3;
     </form>
   `,
 })
-export class TimeEntryFormComponent implements OnInit {
+export class TimeEntryFormComponent {
   entry = input<TimeEntry | null>(null);
   defaultStart = input<Date | null>(null);
   defaultEnd = input<Date | null>(null);
@@ -250,24 +250,26 @@ export class TimeEntryFormComponent implements OnInit {
 
   form!: FormGroup;
 
-  ngOnInit() {
-    const entry = this.entry();
-    const start = entry ? new Date(entry.start) : (this.defaultStart() ?? new Date());
-    const end = entry ? new Date(entry.end) : (this.defaultEnd() ?? new Date(start.getTime() + 3600000));
+  constructor() {
+    effect(() => {
+      const entry = this.entry();
+      const start = entry ? new Date(entry.start) : (this.defaultStart() ?? new Date());
+      const end = entry ? new Date(entry.end) : (this.defaultEnd() ?? new Date(start.getTime() + 3600000));
 
-    const defaultProjectId = entry?.projectId
-      || this.projectStore.activeProjects()[0]?.id
-      || '';
+      const defaultProjectId = entry?.projectId
+        || this.projectStore.activeProjects()[0]?.id
+        || '';
 
-    this.form = this.fb.group({
-      title: [entry?.title ?? '', Validators.required],
-      date: [format(start, 'yyyy-MM-dd'), Validators.required],
-      startTime: [format(start, 'HH:mm'), Validators.required],
-      endTime: [format(end, 'HH:mm'), Validators.required],
-      projectId: [defaultProjectId, Validators.required],
-      notes: [entry?.notes ?? ''],
+      this.form = this.fb.group({
+        title: [entry?.title ?? '', Validators.required],
+        date: [format(start, 'yyyy-MM-dd'), Validators.required],
+        startTime: [format(start, 'HH:mm'), Validators.required],
+        endTime: [format(end, 'HH:mm'), Validators.required],
+        projectId: [defaultProjectId, Validators.required],
+        notes: [entry?.notes ?? ''],
+      });
+      this.selectedProjectId.set(defaultProjectId);
     });
-    this.selectedProjectId.set(defaultProjectId);
   }
 
   selectProject(id: string) {
