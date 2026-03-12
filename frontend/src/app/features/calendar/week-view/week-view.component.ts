@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, ElementRef, viewChild, afterNextRender, HostListener, DestroyRef } from '@angular/core';
+import { Component, inject, computed, signal, ElementRef, viewChild, afterNextRender, HostListener } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TimeEntryStore } from '../../../state/time-entry.store';
 import { ProjectStore } from '../../../state/project.store';
@@ -15,7 +15,7 @@ import { CalendarEvent } from '../../../domain/models/calendar-event.model';
 import { ProjectPillsBarComponent } from '../../../shared/components/project-pills-bar/project-pills-bar.component';
 import { ClearConfirmPopoverComponent } from '../../../shared/components/clear-confirm-popover/clear-confirm-popover.component';
 import { ProjectPopoverComponent } from '../../../shared/components/project-popover/project-popover.component';
-import { DraftEntry, PopoverState, DragOverride, START_HOUR, END_HOUR, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
+import { DraftEntry, PopoverState, DragOverride, SNAP_MINUTES } from '../../../shared/models/calendar-view.models';
 import { computeOverlapLayout, getEntryLeft as calcEntryLeft, getEntryWidth as calcEntryWidth } from '../../../shared/utils/overlap-layout';
 import { snapToHalfHour, snapToGrid, hourToStr, formatTime } from '../../../shared/utils/time-helpers';
 import { getEntryColor as calcEntryColor, getEntryBg as calcEntryBg, getEntryTextColor as calcEntryTextColor, getProject as calcProject } from '../../../shared/utils/entry-styling';
@@ -33,16 +33,31 @@ const HOUR_HEIGHT = 64;
       <!-- Default project bar -->
       <div class="flex items-center gap-3 px-4 py-1.5 border-b border-gray-100 bg-gray-50/40">
         <app-project-pills-bar class="flex-1 min-w-0" />
-        <button (click)="toggleFitToScreen()"
-          class="ml-auto p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-          [class.text-indigo-500]="fitToScreen()"
-          [class.bg-indigo-50]="fitToScreen()"
-          [class.text-gray-400]="!fitToScreen()"
-          title="An Bildschirmhöhe anpassen">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4"/>
-          </svg>
-        </button>
+        <div class="ml-auto flex items-center gap-0.5 text-[11px] text-gray-400 tabular-nums select-none">
+          <button (click)="uiStore.setViewStartHour(uiStore.viewStartHour() - 1)"
+            class="p-0.5 rounded hover:bg-gray-200 hover:text-gray-600 transition-colors"
+            title="Früherer Start">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <button (click)="uiStore.setViewStartHour(uiStore.viewStartHour() + 1)"
+            class="px-1 py-0.5 rounded hover:bg-gray-200 hover:text-gray-600 font-medium transition-colors">
+            {{ uiStore.viewStartHour() }}
+          </button>
+          <span class="text-gray-300">–</span>
+          <button (click)="uiStore.setViewEndHour(uiStore.viewEndHour() - 1)"
+            class="px-1 py-0.5 rounded hover:bg-gray-200 hover:text-gray-600 font-medium transition-colors">
+            {{ uiStore.viewEndHour() }}
+          </button>
+          <button (click)="uiStore.setViewEndHour(uiStore.viewEndHour() + 1)"
+            class="p-0.5 rounded hover:bg-gray-200 hover:text-gray-600 transition-colors"
+            title="Späteres Ende">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
         <app-clear-confirm-popover
           [entryCount]="weekEntryCount()"
           [googleEventCount]="weekGoogleEventCount()"
@@ -121,13 +136,11 @@ const HOUR_HEIGHT = 64;
       </div>
 
       <!-- Scrollable time grid -->
-      <div class="flex flex-1 overflow-x-hidden"
-           [class.overflow-y-auto]="!fitToScreen()"
-           [class.overflow-y-hidden]="fitToScreen()"
+      <div class="flex flex-1 overflow-x-hidden overflow-y-auto"
            #scrollContainer>
         <!-- Hour gutter -->
         <div class="w-[52px] flex-shrink-0 border-r border-gray-100 bg-gray-50/30">
-          @for (hour of hours; track hour) {
+          @for (hour of hours(); track hour) {
             <div class="relative" [style.height.px]="hourHeight()">
               <span class="absolute -top-[9px] right-2 text-[10px] font-medium text-gray-400 tabular-nums select-none">
                 {{ hour < 10 ? '0' + hour : hour }}:00
@@ -144,7 +157,7 @@ const HOUR_HEIGHT = 64;
             [class.bg-gray-200/70]="day.isVacation"
             (mousedown)="onGridMouseDown($event, day.date, dayIdx)"
           >
-            @for (hour of hours; track hour) {
+            @for (hour of hours(); track hour) {
               <div class="border-b border-gray-100/50" [style.height.px]="hourHeight()">
                 <div class="border-b border-dashed border-gray-100/30 h-1/2"></div>
               </div>
@@ -238,63 +251,113 @@ const HOUR_HEIGHT = 64;
 
             <!-- Saved time entries -->
             @for (entry of day.entries; track entry.id) {
-              <div
-                class="absolute rounded-md cursor-pointer z-[6]
-                       shadow-sm hover:shadow-lg transition-all group"
-                [style.top.px]="getTopPosition(getEffectiveStart(entry))"
-                [style.height.px]="getBlockHeight(getEffectiveStart(entry), getEffectiveEnd(entry))"
-                [style.min-height.px]="26"
-                [style.left]="getEntryLeft(entry.id)"
-                [style.width]="getEntryWidth(entry.id)"
-                [style.background-color]="getEntryBg(entry)"
-                [style.border-left]="'3px solid ' + getEntryColor(entry)"
-                [class.ring-2]="selectedEntryIds().has(entry.id)"
-                [class.ring-indigo-400]="selectedEntryIds().has(entry.id)"
-                [class.opacity-60]="dragOverride()?.entryId === entry.id"
-                [class.shadow-xl]="dragOverride()?.entryId === entry.id"
-                [class.!z-50]="dragOverride()?.entryId === entry.id"
-                (mousedown)="onEntryMouseDown($event, entry, dayIdx)"
-                (click)="onEntryClick($event, entry)"
-                (dblclick)="onEntryDblClick($event, entry)"
-              >
-                <div class="px-2 py-1 h-full flex flex-col overflow-hidden">
-                  <div class="flex items-center gap-1 flex-shrink-0">
-                    <div class="text-[11px] font-semibold truncate" [style.color]="getEntryTextColor(entry)">
-                      {{ entry.title || 'Ohne Beschreibung' }}
-                    </div>
-                    @if (entry.source === 'google') {
-                      <svg class="w-2.5 h-2.5 flex-shrink-0 opacity-50" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              @if (entry.pause) {
+                <!-- Pause block -->
+                <div
+                  class="absolute rounded-md cursor-pointer z-[5] border border-dashed border-gray-300
+                         hover:border-gray-400 transition-all group"
+                  style="background: repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(156,163,175,0.08) 4px, rgba(156,163,175,0.08) 8px)"
+                  [style.top.px]="getTopPosition(getEffectiveStart(entry))"
+                  [style.height.px]="getBlockHeight(getEffectiveStart(entry), getEffectiveEnd(entry))"
+                  [style.min-height.px]="26"
+                  [style.left]="getEntryLeft(entry.id)"
+                  [style.width]="getEntryWidth(entry.id)"
+                  [class.ring-2]="selectedEntryIds().has(entry.id)"
+                  [class.ring-gray-400]="selectedEntryIds().has(entry.id)"
+                  [class.opacity-60]="dragOverride()?.entryId === entry.id"
+                  [class.!z-50]="dragOverride()?.entryId === entry.id"
+                  (mousedown)="onEntryMouseDown($event, entry, dayIdx)"
+                  (click)="onEntryClick($event, entry)"
+                  (dblclick)="onEntryDblClick($event, entry)"
+                >
+                  <div class="px-2 py-1 h-full flex flex-col overflow-hidden">
+                    <div class="flex items-center gap-1 flex-shrink-0 text-gray-400">
+                      <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>
                       </svg>
+                      <div class="text-[11px] font-medium truncate">Pause</div>
+                    </div>
+                    <div class="text-[10px] tabular-nums text-gray-400 flex-shrink overflow-hidden leading-tight" style="opacity: 0.7">
+                      {{ formatTime(getEffectiveStart(entry)) }}–{{ formatTime(getEffectiveEnd(entry)) }}
+                    </div>
+                  </div>
+                  <!-- Top resize handle -->
+                  <div
+                    class="absolute top-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                    style="background: linear-gradient(rgba(156,163,175,0.3), transparent)"
+                    (mousedown)="onResizeTopStart($event, entry)"
+                  >
+                    <div class="absolute top-0.5 left-1/2 -translate-x-1/2 w-6 h-[3px] rounded-full bg-gray-400" style="opacity: 0.5"></div>
+                  </div>
+                  <!-- Bottom resize handle -->
+                  <div
+                    class="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                    style="background: linear-gradient(transparent, rgba(156,163,175,0.3))"
+                    (mousedown)="onResizeStart($event, entry)"
+                  >
+                    <div class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-6 h-[3px] rounded-full bg-gray-400" style="opacity: 0.5"></div>
+                  </div>
+                </div>
+              } @else {
+                <!-- Regular entry block -->
+                <div
+                  class="absolute rounded-md cursor-pointer z-[6]
+                         shadow-sm hover:shadow-lg transition-all group"
+                  [style.top.px]="getTopPosition(getEffectiveStart(entry))"
+                  [style.height.px]="getBlockHeight(getEffectiveStart(entry), getEffectiveEnd(entry))"
+                  [style.min-height.px]="26"
+                  [style.left]="getEntryLeft(entry.id)"
+                  [style.width]="getEntryWidth(entry.id)"
+                  [style.background-color]="getEntryBg(entry)"
+                  [style.border-left]="'3px solid ' + getEntryColor(entry)"
+                  [class.ring-2]="selectedEntryIds().has(entry.id)"
+                  [class.ring-indigo-400]="selectedEntryIds().has(entry.id)"
+                  [class.opacity-60]="dragOverride()?.entryId === entry.id"
+                  [class.shadow-xl]="dragOverride()?.entryId === entry.id"
+                  [class.!z-50]="dragOverride()?.entryId === entry.id"
+                  (mousedown)="onEntryMouseDown($event, entry, dayIdx)"
+                  (click)="onEntryClick($event, entry)"
+                  (dblclick)="onEntryDblClick($event, entry)"
+                >
+                  <div class="px-2 py-1 h-full flex flex-col overflow-hidden">
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                      <div class="text-[11px] font-semibold truncate" [style.color]="getEntryTextColor(entry)">
+                        {{ entry.title || 'Ohne Beschreibung' }}
+                      </div>
+                      @if (entry.source === 'google') {
+                        <svg class="w-2.5 h-2.5 flex-shrink-0 opacity-50" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                        </svg>
+                      }
+                    </div>
+                    <div class="text-[10px] tabular-nums flex-shrink overflow-hidden leading-tight" [style.color]="getEntryColor(entry)" style="opacity: 0.7">
+                      {{ formatTime(getEffectiveStart(entry)) }}–{{ formatTime(getEffectiveEnd(entry)) }}
+                    </div>
+                    @if (getProject(entry); as p) {
+                      <div class="text-[9px] font-semibold mt-auto truncate uppercase tracking-wide flex-shrink overflow-hidden" [style.color]="getEntryColor(entry)" style="opacity: 0.6">{{ getDisplayName(p) }}</div>
                     }
                   </div>
-                  <div class="text-[10px] tabular-nums flex-shrink overflow-hidden leading-tight" [style.color]="getEntryColor(entry)" style="opacity: 0.7">
-                    {{ formatTime(getEffectiveStart(entry)) }}–{{ formatTime(getEffectiveEnd(entry)) }}
+                  <!-- Top resize handle -->
+                  <div
+                    class="absolute top-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                    [style.background]="'linear-gradient(' + getEntryColor(entry) + '30, transparent)'"
+                    (mousedown)="onResizeTopStart($event, entry)"
+                  >
+                    <div class="absolute top-0.5 left-1/2 -translate-x-1/2 w-6 h-[3px] rounded-full" [style.background-color]="getEntryColor(entry)" style="opacity: 0.5"></div>
                   </div>
-                  @if (getProject(entry); as p) {
-                    <div class="text-[9px] font-semibold mt-auto truncate uppercase tracking-wide flex-shrink overflow-hidden" [style.color]="getEntryColor(entry)" style="opacity: 0.6">{{ getDisplayName(p) }}</div>
-                  }
+                  <!-- Bottom resize handle -->
+                  <div
+                    class="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                    [style.background]="'linear-gradient(transparent, ' + getEntryColor(entry) + '30)'"
+                    (mousedown)="onResizeStart($event, entry)"
+                  >
+                    <div class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-6 h-[3px] rounded-full" [style.background-color]="getEntryColor(entry)" style="opacity: 0.5"></div>
+                  </div>
                 </div>
-                <!-- Top resize handle -->
-                <div
-                  class="absolute top-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
-                  [style.background]="'linear-gradient(' + getEntryColor(entry) + '30, transparent)'"
-                  (mousedown)="onResizeTopStart($event, entry)"
-                >
-                  <div class="absolute top-0.5 left-1/2 -translate-x-1/2 w-6 h-[3px] rounded-full" [style.background-color]="getEntryColor(entry)" style="opacity: 0.5"></div>
-                </div>
-                <!-- Bottom resize handle -->
-                <div
-                  class="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
-                  [style.background]="'linear-gradient(transparent, ' + getEntryColor(entry) + '30)'"
-                  (mousedown)="onResizeStart($event, entry)"
-                >
-                  <div class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-6 h-[3px] rounded-full" [style.background-color]="getEntryColor(entry)" style="opacity: 0.5"></div>
-                </div>
-              </div>
+              }
             }
 
             <!-- Draft block -->
@@ -342,7 +405,7 @@ const HOUR_HEIGHT = 64;
         [y]="pop.y"
         [selectedCount]="selectedEntryIds().size"
         [commonProjectId]="commonProjectId()"
-        [projectHours]="projectHoursMap()"
+        [entryTimeLabel]="entryTimeLabel()"
         (assign)="assignProject($event)"
         (openDetails)="openEntryDetails()"
         (delete)="deleteEntries()"
@@ -361,26 +424,20 @@ export class WeekViewComponent {
   private readonly undoStore = inject(UndoStore);
   protected readonly vacationStore = inject(VacationStore);
 
-  private readonly destroyRef = inject(DestroyRef);
-
   readonly scrollContainer = viewChild<ElementRef>('scrollContainer');
   readonly draftInput = viewChild<ElementRef>('draftInput');
 
-  readonly hours = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
+  private readonly viewStart = computed(() => this.uiStore.viewStartHour());
+  private readonly viewEnd = computed(() => this.uiStore.viewEndHour());
+  readonly hours = computed(() =>
+    Array.from({ length: this.viewEnd() - this.viewStart() }, (_, i) => this.viewStart() + i)
+  );
 
   draft = signal<DraftEntry | null>(null);
   popover = signal<PopoverState | null>(null);
   selectedEntryIds = signal<Set<string>>(new Set());
-  fitToScreen = signal(true);
-  private containerHeight = signal(0);
 
-  readonly hourHeight = computed(() => {
-    if (this.fitToScreen()) {
-      const h = this.containerHeight();
-      return h > 0 ? h / this.hours.length : HOUR_HEIGHT;
-    }
-    return HOUR_HEIGHT;
-  });
+  readonly hourHeight = computed(() => HOUR_HEIGHT);
 
   readonly defaultProject = computed(() => {
     const id = this.uiStore.defaultProjectId();
@@ -402,14 +459,8 @@ export class WeekViewComponent {
     afterNextRender(() => {
       const container = this.scrollContainer()?.nativeElement;
       if (!container) return;
-      if (!this.fitToScreen()) {
-        container.scrollTop = (8 - START_HOUR) * HOUR_HEIGHT;
-      }
-      const ro = new ResizeObserver(entries => {
-        this.containerHeight.set(entries[0].contentRect.height);
-      });
-      ro.observe(container);
-      this.destroyRef.onDestroy(() => ro.disconnect());
+      const scrollTo = (8 - this.viewStart()) * HOUR_HEIGHT;
+      if (scrollTo > 0) container.scrollTop = scrollTo;
     });
   }
 
@@ -421,7 +472,7 @@ export class WeekViewComponent {
 
   readonly nowPosition = computed(() => {
     const now = new Date();
-    return (now.getHours() + now.getMinutes() / 60 - START_HOUR) * this.hourHeight();
+    return (now.getHours() + now.getMinutes() / 60 - this.viewStart()) * this.hourHeight();
   });
 
   readonly days = computed(() => {
@@ -441,7 +492,7 @@ export class WeekViewComponent {
         .filter(e => isSameDay(new Date(e.start), date))
         .filter(e => !bookedGoogleIds.has(e.id))
         .filter(e => !dismissedGoogleIds.has(e.id));
-      const totalHours = dayEntries.reduce(
+      const totalHours = dayEntries.filter(e => !e.pause).reduce(
         (sum, e) => sum + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000, 0
       );
       const isVacation = vacationSet.has(format(date, 'yyyy-MM-dd'));
@@ -535,7 +586,7 @@ export class WeekViewComponent {
     if (this.draft()?.title?.trim()) { this.saveDraft(); }
 
     const y = this.getYInColumn(event);
-    const hour = snapToHalfHour(START_HOUR + y / this.hourHeight());
+    const hour = snapToHalfHour(this.viewStart() + y / this.hourHeight());
 
     this.draft.set({ date, startHour: hour, endHour: hour + 0.5, title: '' });
     setTimeout(() => this.draftInput()?.nativeElement?.focus(), 0);
@@ -547,11 +598,11 @@ export class WeekViewComponent {
     const onMove = (e: MouseEvent) => {
       lastClientY = e.clientY;
       const currentY = this.getYInColumn(e);
-      const currentHour = snapToGrid(START_HOUR + currentY / this.hourHeight(), SNAP_MINUTES);
+      const currentHour = snapToGrid(this.viewStart() + currentY / this.hourHeight(), SNAP_MINUTES);
       const d = this.draft();
       if (d) {
         const newEnd = Math.max(currentHour, d.startHour + 0.25);
-        this.draft.set({ ...d, endHour: Math.min(newEnd, END_HOUR) });
+        this.draft.set({ ...d, endHour: Math.min(newEnd, this.viewEnd()) });
       }
     };
     const onUp = () => {
@@ -665,7 +716,7 @@ export class WeekViewComponent {
     const startHour = entryStart.getHours() + entryStart.getMinutes() / 60;
 
     const yInColumn = this.getYInColumn(event);
-    const clickOffsetHour = (START_HOUR + yInColumn / this.hourHeight()) - startHour;
+    const clickOffsetHour = (this.viewStart() + yInColumn / this.hourHeight()) - startHour;
 
     const dayColumns = this.getDayColumnRects();
     let currentDayIdx = dayIdx;
@@ -693,9 +744,9 @@ export class WeekViewComponent {
       const targetDate = this.days()[currentDayIdx].date;
 
       const yInCol = this.getYInColumn(e);
-      const rawHour = START_HOUR + yInCol / this.hourHeight() - clickOffsetHour;
+      const rawHour = this.viewStart() + yInCol / this.hourHeight() - clickOffsetHour;
       const snappedHour = snapToGrid(rawHour, SNAP_MINUTES);
-      const clampedHour = Math.max(START_HOUR, Math.min(snappedHour, END_HOUR - durationMs / 3600000));
+      const clampedHour = Math.max(this.viewStart(), Math.min(snappedHour, this.viewEnd() - durationMs / 3600000));
 
       const newStart = new Date(targetDate);
       newStart.setHours(Math.floor(clampedHour), Math.round((clampedHour % 1) * 60), 0, 0);
@@ -743,7 +794,7 @@ export class WeekViewComponent {
 
   // ─── Draft ─────────────────────────────────────────────
   isDraftOnDay(date: Date): boolean { return !!this.draft() && isSameDay(this.draft()!.date, date); }
-  getDraftTop(): number { return (this.draft()!.startHour - START_HOUR) * this.hourHeight(); }
+  getDraftTop(): number { return (this.draft()!.startHour - this.viewStart()) * this.hourHeight(); }
   getDraftHeight(): number { const d = this.draft()!; return Math.max((d.endHour - d.startHour) * this.hourHeight(), 26); }
   formatDraftTime(): string { const d = this.draft()!; return `${hourToStr(d.startHour)}–${hourToStr(d.endHour)}`; }
   updateDraftTitle(title: string) { const d = this.draft(); if (d) this.draft.set({ ...d, title }); }
@@ -767,7 +818,7 @@ export class WeekViewComponent {
     const onMove = (e: MouseEvent) => {
       const d = this.draft()!;
       const newStart = snapToGrid(startStartHour + (e.clientY - this.resizeStartY) / this.hourHeight(), SNAP_MINUTES);
-      this.draft.set({ ...d, startHour: Math.min(Math.max(newStart, START_HOUR), d.endHour - 0.25) });
+      this.draft.set({ ...d, startHour: Math.min(Math.max(newStart, this.viewStart()), d.endHour - 0.25) });
     };
     const onUp = () => { this.resizingDraft = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
@@ -834,7 +885,7 @@ export class WeekViewComponent {
       const endDate = new Date(entry.end);
       const endHour = endDate.getHours() + endDate.getMinutes() / 60;
       const newStartHour = snapToGrid(this.resizeStartStartHour + (e.clientY - this.resizeStartY) / this.hourHeight(), SNAP_MINUTES);
-      const clampedStart = Math.min(Math.max(newStartHour, START_HOUR), endHour - 0.25);
+      const clampedStart = Math.min(Math.max(newStartHour, this.viewStart()), endHour - 0.25);
       const newStart = new Date(entry.start); newStart.setHours(Math.floor(clampedStart), (clampedStart % 1) * 60, 0, 0);
       this.resizeTopOverride.set({ entryId: entry.id, start: newStart });
     };
@@ -852,7 +903,7 @@ export class WeekViewComponent {
   }
 
   // ─── Positioning & Styling ─────────────────────────────
-  getTopPosition(start: Date): number { const d = new Date(start); return (d.getHours() + d.getMinutes() / 60 - START_HOUR) * this.hourHeight(); }
+  getTopPosition(start: Date): number { const d = new Date(start); return (d.getHours() + d.getMinutes() / 60 - this.viewStart()) * this.hourHeight(); }
   getBlockHeight(start: Date, end: Date): number { return Math.max((new Date(end).getTime() - new Date(start).getTime()) / 3600000 * this.hourHeight(), 26); }
   getEffectiveStart(entry: TimeEntry): Date {
     const drag = this.dragOverride();
@@ -873,17 +924,6 @@ export class WeekViewComponent {
   getDisplayName = getProjectDisplayName;
   formatTime = formatTime;
 
-  toggleFitToScreen() {
-    this.dismissEmptyDraft();
-    this.fitToScreen.update(v => !v);
-    if (!this.fitToScreen()) {
-      setTimeout(() => {
-        const container = this.scrollContainer()?.nativeElement;
-        if (container) container.scrollTop = (8 - START_HOUR) * this.hourHeight();
-      }, 0);
-    }
-  }
-
   readonly weekEntryCount = computed(() =>
     this.days().reduce((sum, day) => sum + day.entries.length, 0)
   );
@@ -893,7 +933,7 @@ export class WeekViewComponent {
   );
 
   readonly weekProjectSummary = computed(() => {
-    const entries = this.days().flatMap(d => d.entries);
+    const entries = this.days().flatMap(d => d.entries).filter(e => !e.pause);
     const map = new Map<string, number>();
     for (const e of entries) {
       const pid = e.projectId ?? '__none__';
@@ -917,12 +957,12 @@ export class WeekViewComponent {
     this.weekProjectSummary().reduce((sum, p) => sum + p.hours, 0)
   );
 
-  readonly projectHoursMap = computed(() => {
-    const map = new Map<string, number>();
-    for (const ps of this.weekProjectSummary()) {
-      if (ps.pid !== '__none__') map.set(ps.pid, ps.hours);
-    }
-    return map;
+  readonly entryTimeLabel = computed(() => {
+    const ids = this.selectedEntryIds();
+    if (ids.size !== 1) return '';
+    const entry = this.timeEntryStore.entries().find(e => ids.has(e.id));
+    if (!entry) return '';
+    return `${formatTime(entry.start)}–${formatTime(entry.end)}`;
   });
 
   readonly dayProjectSummary = computed(() => {
@@ -930,9 +970,10 @@ export class WeekViewComponent {
     const result = new Map<string, { pid: string; name: string; color: string; hours: number }[]>();
 
     for (const day of this.days()) {
-      if (day.entries.length === 0) continue;
+      const workEntries = day.entries.filter(e => !e.pause);
+      if (workEntries.length === 0) continue;
       const hoursByProject = new Map<string, number>();
-      for (const e of day.entries) {
+      for (const e of workEntries) {
         const pid = e.projectId ?? '__none__';
         hoursByProject.set(pid, (hoursByProject.get(pid) ?? 0) + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000);
       }
