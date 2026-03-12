@@ -31,10 +31,13 @@ import { Project, CreateProjectDTO, getProjectDisplayName } from '../../../domai
       <div class="space-y-1">
         @for (project of sortedProjects(); track project.id) {
           <div
-            class="flex items-center justify-between p-4 bg-white rounded-xl border-2 group cursor-grab active:cursor-grabbing
+            class="flex items-center justify-between p-4 rounded-xl border-2 group cursor-grab active:cursor-grabbing
                    transition-all duration-300 ease-in-out"
+            [class.bg-indigo-50]="project.favorite"
+            [class.bg-white]="!project.favorite"
+            [class.border-indigo-200]="project.favorite && dragOverId() !== project.id"
             [class.border-gray-400]="dragOverId() === project.id"
-            [class.border-gray-100]="dragOverId() !== project.id"
+            [class.border-gray-100]="!project.favorite && dragOverId() !== project.id"
             [class.shadow-sm]="draggedId() !== project.id"
             [class.opacity-30]="draggedId() === project.id"
             [class.opacity-50]="project.ignored && draggedId() !== project.id && !fadingOutIds().has(project.id)"
