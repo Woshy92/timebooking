@@ -11,6 +11,7 @@ const project: Project = {
   archived: false,
   favorite: false,
   ignored: false,
+  billable: true,
   order: 0,
 };
 

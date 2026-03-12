@@ -10,6 +10,7 @@ function project(overrides: Partial<Project> = {}): Project {
     archived: false,
     favorite: false,
     ignored: false,
+    billable: true,
     order: 0,
     ...overrides,
   };

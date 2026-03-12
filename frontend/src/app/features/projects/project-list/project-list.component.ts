@@ -72,6 +72,16 @@ import { Project, CreateProjectDTO, getProjectDisplayName } from '../../../domai
                       [style.transform]="project.favorite ? 'translateX(18px)' : 'translateX(2px)'"></span>
                   </button>
                 </label>
+                <label class="flex items-center gap-1.5 cursor-pointer" title="Abrechenbar">
+                  <span class="text-[11px] text-gray-400 select-none">Abrechenbar</span>
+                  <button type="button" (click)="toggleBillable(project)"
+                    class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none"
+                    [class.bg-emerald-500]="project.billable"
+                    [class.bg-gray-200]="!project.billable">
+                    <span class="inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform"
+                      [style.transform]="project.billable ? 'translateX(18px)' : 'translateX(2px)'"></span>
+                  </button>
+                </label>
                 <label class="flex items-center gap-1.5 cursor-pointer" title="Im Kalender ausblenden">
                   <span class="text-[11px] text-gray-400 select-none">Ignorieren</span>
                   <button type="button" (click)="toggleIgnored(project)"
@@ -209,6 +219,10 @@ export class ProjectListComponent {
     const changes: Partial<Project> = { favorite: !project.favorite };
     if (!project.favorite) changes.ignored = false;
     this.projectStore.updateProject(project.id, changes);
+  }
+
+  toggleBillable(project: Project) {
+    this.projectStore.updateProject(project.id, { billable: !project.billable });
   }
 
   toggleIgnored(project: Project) {

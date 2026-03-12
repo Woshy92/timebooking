@@ -20,6 +20,7 @@ function toProject(row: Row) {
     archived: row.archived ?? false,
     favorite: row.favorite ?? false,
     ignored: row.ignored ?? false,
+    billable: row.billable ?? true,
     order: row.order ?? 0,
   };
 }
@@ -58,7 +59,7 @@ router.get('/projects', async (_req, res) => {
 });
 
 router.post('/projects', async (req, res) => {
-  const { name, rate, shortName, color, description, archived, favorite, ignored } = req.body;
+  const { name, rate, shortName, color, description, archived, favorite, ignored, billable } = req.body;
   const db = await getDb();
 
   const { rows: maxRows } = await db.query<{ max_order: number }>(
@@ -67,10 +68,10 @@ router.post('/projects', async (req, res) => {
   const nextOrder = (maxRows[0]?.max_order ?? -1) + 1;
 
   const { rows } = await db.query<Row>(
-    `INSERT INTO projects (name, rate, short_name, color, description, archived, favorite, ignored, "order")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO projects (name, rate, short_name, color, description, archived, favorite, ignored, billable, "order")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
-    [name, rate ?? '', shortName ?? null, color, description ?? null, archived ?? false, favorite ?? false, ignored ?? false, nextOrder]
+    [name, rate ?? '', shortName ?? null, color, description ?? null, archived ?? false, favorite ?? false, ignored ?? false, billable ?? true, nextOrder]
   );
   res.status(201).json(toProject(rows[0]));
 });
@@ -99,7 +100,7 @@ router.put('/projects/:id', async (req, res) => {
   const fieldMap: Record<string, string> = {
     name: 'name', rate: 'rate', shortName: 'short_name', color: 'color',
     description: 'description', archived: 'archived', order: '"order"',
-    favorite: 'favorite', ignored: 'ignored',
+    favorite: 'favorite', ignored: 'ignored', billable: 'billable',
   };
 
   for (const [key, col] of Object.entries(fieldMap)) {

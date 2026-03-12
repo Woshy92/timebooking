@@ -8,6 +8,7 @@ export interface Project {
   archived: boolean;
   favorite: boolean;
   ignored: boolean;
+  billable: boolean;
   order: number;
 }
 

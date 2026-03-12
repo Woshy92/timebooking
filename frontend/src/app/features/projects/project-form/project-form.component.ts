@@ -99,7 +99,7 @@ export class ProjectFormComponent implements OnInit {
     if (p) {
       this.saved.emit({ id: p.id, changes: v });
     } else {
-      this.saved.emit({ ...v, archived: false, favorite: false, ignored: false });
+      this.saved.emit({ ...v, archived: false, favorite: false, ignored: false, billable: true });
     }
   }
 
