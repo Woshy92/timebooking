@@ -85,7 +85,7 @@ export class ProjectFormComponent implements OnInit {
     const defaultColor = p?.color ?? this.nextAvailableColor();
     this.form = this.fb.group({
       name: [p?.name ?? '', Validators.required],
-      rate: [p?.rate ?? '', Validators.required],
+      rate: [p?.rate ?? ''],
       shortName: [p?.shortName ?? ''],
       description: [p?.description ?? ''],
       color: [defaultColor],
