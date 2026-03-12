@@ -94,7 +94,7 @@ type HistoryAction = { type: 'import'; eventId: string; entryId?: string } | { t
                   (input)="projectFilter.set($any($event.target).value)"
                   class="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300 outline-none placeholder:text-gray-400"
                 />
-                <div class="grid gap-1 max-h-48 overflow-y-auto">
+                <div class="grid gap-1 max-h-[60vh] overflow-y-auto">
                   @for (project of filteredProjects(); track project.id) {
                     <button
                       class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-all text-sm hover:bg-indigo-50 hover:text-indigo-700"
