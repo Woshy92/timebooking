@@ -34,6 +34,7 @@ const projects: [string, string, string][] = [
   ['Vertrieb', '', '#7c3aed'],
   ['Projektbegleitung für die KI Werkstatt', '', '#0d9488'],
   ['PoC VERA', '', '#059669'],
+  ['Allianz: Tribe NOVA Leben/FirmenOnline Los 3', '', '#b45309'],
 ];
 
 async function seed() {
