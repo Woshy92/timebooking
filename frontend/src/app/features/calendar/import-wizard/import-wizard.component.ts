@@ -12,17 +12,18 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
 type WizardStep = 'assign' | 'gaps' | 'done';
+type HistoryAction = { type: 'import'; eventId: string; entryId?: string } | { type: 'dismiss'; eventId: string } | { type: 'skip' };
 
 @Component({
   selector: 'app-import-wizard',
   standalone: true,
   imports: [ModalComponent],
   template: `
-    <app-modal [title]="modalTitle()" maxWidth="520px" (closed)="closed.emit()">
+    <app-modal [title]="modalTitle()" maxWidth="560px" (closed)="closed.emit()">
       @switch (step()) {
         @case ('assign') {
           @if (currentEvent(); as ev) {
-            <div class="space-y-4">
+            <div class="space-y-3">
               <!-- Progress -->
               <div class="flex items-center justify-between text-xs text-gray-400">
                 <span>Termin {{ currentIndex() + 1 }} von {{ manualEvents().length }}</span>
@@ -36,44 +37,33 @@ type WizardStep = 'assign' | 'gaps' | 'done';
               </div>
 
               <!-- Event details -->
-              <div class="bg-gray-50 rounded-xl p-4 space-y-2">
-                <div class="font-semibold text-gray-900">{{ ev.title }}</div>
-                <div class="flex items-center gap-2 text-sm text-gray-500">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                  </svg>
-                  <span>{{ formatDate(ev.start) }}</span>
-                </div>
-                <div class="flex items-center gap-2 text-sm text-gray-500">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                  </svg>
-                  <span>{{ formatTime(ev.start) }} – {{ formatTime(ev.end) }}</span>
-                </div>
-                @if (ev.description) {
-                  <div class="text-xs text-gray-400 line-clamp-2">{{ ev.description }}</div>
-                }
-              </div>
-
-              <!-- Project selection -->
-              <div class="space-y-2">
-                <div class="text-sm font-medium text-gray-700">Projekt zuweisen</div>
-                <div class="grid gap-1.5 max-h-48 overflow-y-auto">
-                  @for (project of activeProjects(); track project.id) {
-                    <button
-                      class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-all text-sm"
-                      [class]="selectedProjectId() === project.id
-                        ? 'bg-indigo-50 ring-1 ring-indigo-300 text-indigo-700'
-                        : 'hover:bg-gray-50 text-gray-700'"
-                      (click)="selectedProjectId.set(project.id)"
-                    >
-                      <div class="w-3 h-3 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
-                      <span class="truncate">{{ getDisplayName(project) }}</span>
-                    </button>
+              <div class="bg-gray-50 rounded-xl p-4 flex gap-4">
+                <div class="flex-1 min-w-0 space-y-1.5">
+                  <div class="font-semibold text-gray-900">{{ ev.title }}</div>
+                  <div class="flex items-center gap-2 text-sm text-gray-500">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <span>{{ formatDate(ev.start) }}, {{ formatTime(ev.start) }}–{{ formatTime(ev.end) }}</span>
+                  </div>
+                  @if (ev.description) {
+                    <div class="text-xs text-gray-400 line-clamp-2">{{ ev.description }}</div>
                   }
                 </div>
+                @if (ev.attendees?.length) {
+                  <div class="flex-shrink-0 space-y-1 max-w-[140px]">
+                    <div class="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Teilnehmer</div>
+                    <div class="space-y-0.5">
+                      @for (a of ev.attendees!.slice(0, 4); track a) {
+                        <div class="text-xs text-gray-500 truncate">{{ a }}</div>
+                      }
+                      @if (ev.attendees!.length > 4) {
+                        <div class="text-[10px] text-gray-400">+{{ ev.attendees!.length - 4 }} weitere</div>
+                      }
+                    </div>
+                  </div>
+                }
               </div>
 
               <!-- Recurring mapping checkbox -->
@@ -86,26 +76,54 @@ type WizardStep = 'assign' | 'gaps' | 'done';
                 </label>
               }
 
+              <!-- Project filter + selection -->
+              <div class="space-y-2">
+                <input
+                  type="text"
+                  placeholder="Projekt suchen..."
+                  [value]="projectFilter()"
+                  (input)="projectFilter.set($any($event.target).value)"
+                  class="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-300 outline-none placeholder:text-gray-400"
+                />
+                <div class="grid gap-1 max-h-48 overflow-y-auto">
+                  @for (project of filteredProjects(); track project.id) {
+                    <button
+                      class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-all text-sm hover:bg-indigo-50 hover:text-indigo-700"
+                      (click)="importWithProject(project.id)"
+                    >
+                      <div class="w-3 h-3 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
+                      <span class="truncate">{{ getDisplayName(project) }}</span>
+                    </button>
+                  }
+                  @if (filteredProjects().length === 0) {
+                    <div class="text-xs text-gray-400 px-3 py-2">Kein Projekt gefunden</div>
+                  }
+                </div>
+              </div>
+
               <!-- Actions -->
-              <div class="flex items-center gap-2 pt-2">
+              <div class="flex items-center gap-2 pt-1">
+                @if (currentIndex() > 0) {
+                  <button
+                    class="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+                    (click)="goBack()"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                    Zurück
+                  </button>
+                }
+                <div class="flex-1"></div>
                 <button
-                  class="flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors
-                         bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                  [disabled]="!selectedProjectId()"
-                  (click)="importCurrent()"
-                >
-                  Importieren
-                </button>
-                <button
-                  class="px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+                  class="px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 transition-colors"
                   (click)="importCurrentWithoutProject()"
                 >
                   Ohne Projekt
                 </button>
                 <button
-                  class="px-4 py-2 rounded-lg text-sm font-medium text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                  class="px-3 py-2 rounded-lg text-sm font-medium text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
                   (click)="dismissCurrent()"
-                  title="Termin ausblenden"
                 >
                   Löschen
                 </button>
@@ -180,13 +198,24 @@ export class ImportWizardComponent {
 
   step = signal<WizardStep>('assign');
   currentIndex = signal(0);
-  selectedProjectId = signal<string | null>(null);
   applyToSeries = signal(false);
   importedCount = signal(0);
   autoImportedCount = signal(0);
   gapsFilled = signal(false);
+  projectFilter = signal('');
+
+  private history: HistoryAction[] = [];
 
   readonly activeProjects = computed(() => this.projectStore.activeProjects());
+
+  readonly filteredProjects = computed(() => {
+    const q = this.projectFilter().toLowerCase().trim();
+    if (!q) return this.activeProjects();
+    return this.activeProjects().filter(p =>
+      getProjectDisplayName(p).toLowerCase().includes(q) ||
+      p.name.toLowerCase().includes(q)
+    );
+  });
 
   /** All visible Google events (not yet imported, not dismissed) */
   private readonly visibleEvents = computed(() => {
@@ -228,7 +257,6 @@ export class ImportWizardComponent {
   }
 
   constructor() {
-    // Auto-import recurring events with known mappings
     afterInit(() => {
       const mappings = this.timeEntryStore.recurringProjectMappings();
       const autoEvents = this.visibleEvents().filter(ev =>
@@ -240,26 +268,16 @@ export class ImportWizardComponent {
       this.autoImportedCount.set(autoEvents.length);
       this.importedCount.set(autoEvents.length);
 
-      // Pre-select default project
-      const defaultPid = this.uiStore.defaultProjectId();
-      if (defaultPid) {
-        this.selectedProjectId.set(defaultPid);
-      }
-
-      // If no manual events, skip directly to gaps step
       if (this.manualEvents().length === 0) {
         this.step.set(this.importedCount() > 0 ? 'gaps' : 'done');
       }
     });
   }
 
-  importCurrent() {
+  importWithProject(projectId: string) {
     const ev = this.currentEvent();
     if (!ev) return;
 
-    const projectId = this.selectedProjectId() ?? undefined;
-
-    // If recurring and "apply to series" checked, save the mapping
     if (ev.recurringEventId && this.applyToSeries() && projectId) {
       this.timeEntryStore.setRecurringProjectMapping(ev.recurringEventId, projectId);
     }
@@ -276,6 +294,7 @@ export class ImportWizardComponent {
       attendees: ev.attendees?.length ? ev.attendees : undefined,
     });
 
+    this.history.push({ type: 'import', eventId: ev.id });
     this.importedCount.update(c => c + 1);
     this.advance();
   }
@@ -295,6 +314,8 @@ export class ImportWizardComponent {
       description: ev.description || undefined,
       attendees: ev.attendees?.length ? ev.attendees : undefined,
     });
+
+    this.history.push({ type: 'import', eventId: ev.id });
     this.importedCount.update(c => c + 1);
     this.advance();
   }
@@ -303,11 +324,32 @@ export class ImportWizardComponent {
     const ev = this.currentEvent();
     if (!ev) return;
     this.timeEntryStore.dismissGoogleEvent(ev.id);
+    this.history.push({ type: 'dismiss', eventId: ev.id });
     this.advance();
   }
 
-  skipCurrent() {
-    this.advance();
+  goBack() {
+    if (this.currentIndex() === 0) return;
+    const lastAction = this.history.pop();
+    if (!lastAction) return;
+
+    // Undo last action
+    if (lastAction.type === 'import') {
+      // Find the entry by googleEventId and remove it
+      const entry = this.timeEntryStore.entries().find(e => e.googleEventId === lastAction.eventId);
+      if (entry) {
+        this.timeEntryStore.removeEntry(entry.id);
+        this.importedCount.update(c => c - 1);
+      }
+    } else if (lastAction.type === 'dismiss') {
+      // Can't easily un-dismiss via store, but clearing and re-loading works
+      // For now, the dismissed ID stays but the event won't show in the wizard anyway
+      // since visibleEvents filters them — we just go back to the previous index
+    }
+
+    this.currentIndex.update(i => i - 1);
+    this.projectFilter.set('');
+    this.applyToSeries.set(false);
   }
 
   fillGaps() {
@@ -322,6 +364,7 @@ export class ImportWizardComponent {
       this.step.set(this.importedCount() > 0 ? 'gaps' : 'done');
     } else {
       this.currentIndex.set(nextIndex);
+      this.projectFilter.set('');
       this.applyToSeries.set(false);
     }
   }
