@@ -19,8 +19,8 @@ const calendarAdapter = environment.googleCalendarEnabled
   ? GoogleCalendarAdapter
   : NoopCalendarAdapter;
 
-// Storage: ApiStorageAdapter (PGlite backend) or IndexedDbAdapter (browser-local fallback)
-const storageAdapter = environment.backendUrl
+// Storage: ApiStorageAdapter (PGlite backend) when Google Calendar is enabled, else IndexedDbAdapter
+const storageAdapter = environment.googleCalendarEnabled
   ? ApiStorageAdapter
   : IndexedDbAdapter;
 

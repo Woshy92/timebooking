@@ -2,6 +2,7 @@ import { inject } from '@angular/core';
 import { signalStore, withState, withMethods, patchState } from '@ngrx/signals';
 import { CalendarEvent } from '../domain/models/calendar-event.model';
 import { CALENDAR_PORT } from '../domain/ports/calendar.port';
+import { extractErrorMessage } from '../shared/utils/error-message';
 
 interface CalendarState {
   events: CalendarEvent[];
@@ -31,7 +32,7 @@ export const CalendarStore = signalStore(
         patchState(store, { loading: true });
         calendarPort.fetchEvents({ timeMin, timeMax }).subscribe({
           next: (events) => patchState(store, { events, loading: false }),
-          error: (err) => patchState(store, { error: String(err), loading: false }),
+          error: (err) => patchState(store, { error: extractErrorMessage(err), loading: false }),
         });
       },
       getAuthUrl(callback: (url: string) => void) {

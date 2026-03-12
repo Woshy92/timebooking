@@ -4,6 +4,7 @@ import { TimeEntry, CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../domain/mod
 import { RecurringProjectMapping } from '../domain/models/recurring-mapping.model';
 import { STORAGE_PORT } from '../domain/ports/storage.port';
 import { computeGapFills } from '../shared/utils/gap-filler';
+import { extractErrorMessage } from '../shared/utils/error-message';
 
 interface TimeEntryState {
   entries: TimeEntry[];
@@ -47,13 +48,13 @@ export const TimeEntryStore = signalStore(
         patchState(store, { loading: true });
         storage.getEntries(from, to).subscribe({
           next: (entries) => patchState(store, { entries, loading: false }),
-          error: (err) => patchState(store, { error: String(err), loading: false }),
+          error: (err) => patchState(store, { error: extractErrorMessage(err), loading: false }),
         });
       },
       addEntry(dto: CreateTimeEntryDTO) {
         storage.saveEntry(dto).subscribe({
           next: (entry) => patchState(store, { entries: [...store.entries(), entry] }),
-          error: (err) => patchState(store, { error: String(err) }),
+          error: (err) => patchState(store, { error: extractErrorMessage(err) }),
         });
       },
       updateEntry(id: string, changes: UpdateTimeEntryDTO) {
@@ -61,7 +62,7 @@ export const TimeEntryStore = signalStore(
           next: (updated) => patchState(store, {
             entries: store.entries().map(e => e.id === id ? updated : e),
           }),
-          error: (err) => patchState(store, { error: String(err) }),
+          error: (err) => patchState(store, { error: extractErrorMessage(err) }),
         });
       },
       removeEntry(id: string) {
@@ -76,7 +77,7 @@ export const TimeEntryStore = signalStore(
             }
             patchState(store, updates);
           },
-          error: (err) => patchState(store, { error: String(err) }),
+          error: (err) => patchState(store, { error: extractErrorMessage(err) }),
         });
       },
       removeEntries(ids: string[]) {
@@ -91,7 +92,7 @@ export const TimeEntryStore = signalStore(
             }
             patchState(store, updates);
           },
-          error: (err) => patchState(store, { error: String(err) }),
+          error: (err) => patchState(store, { error: extractErrorMessage(err) }),
         });
       },
       loadDismissedGoogleEventIds() {

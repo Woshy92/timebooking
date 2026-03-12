@@ -2,6 +2,7 @@ import { computed, inject } from '@angular/core';
 import { signalStore, withState, withMethods, withComputed, withHooks, patchState } from '@ngrx/signals';
 import { Project, CreateProjectDTO } from '../domain/models/project.model';
 import { STORAGE_PORT } from '../domain/ports/storage.port';
+import { extractErrorMessage } from '../shared/utils/error-message';
 
 interface ProjectState {
   projects: Project[];
@@ -29,13 +30,13 @@ export const ProjectStore = signalStore(
         patchState(store, { loading: true });
         storage.getProjects().subscribe({
           next: (projects) => patchState(store, { projects, loading: false }),
-          error: (err) => patchState(store, { error: String(err), loading: false }),
+          error: (err) => patchState(store, { error: extractErrorMessage(err), loading: false }),
         });
       },
       addProject(dto: CreateProjectDTO) {
         storage.saveProject(dto).subscribe({
           next: (project) => patchState(store, { projects: [...store.projects(), project] }),
-          error: (err) => patchState(store, { error: String(err) }),
+          error: (err) => patchState(store, { error: extractErrorMessage(err) }),
         });
       },
       updateProject(id: string, changes: Partial<Project>) {
@@ -43,7 +44,7 @@ export const ProjectStore = signalStore(
           next: (updated) => patchState(store, {
             projects: store.projects().map(p => p.id === id ? updated : p),
           }),
-          error: (err) => patchState(store, { error: String(err) }),
+          error: (err) => patchState(store, { error: extractErrorMessage(err) }),
         });
       },
       deleteProject(id: string) {
@@ -51,13 +52,13 @@ export const ProjectStore = signalStore(
           next: () => patchState(store, {
             projects: store.projects().filter(p => p.id !== id),
           }),
-          error: (err) => patchState(store, { error: String(err) }),
+          error: (err) => patchState(store, { error: extractErrorMessage(err) }),
         });
       },
       reorderProjects(orderedIds: string[]) {
         storage.reorderProjects(orderedIds).subscribe({
           next: (projects) => patchState(store, { projects }),
-          error: (err) => patchState(store, { error: String(err) }),
+          error: (err) => patchState(store, { error: extractErrorMessage(err) }),
         });
       },
     };

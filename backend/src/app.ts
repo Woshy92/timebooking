@@ -39,26 +39,26 @@ export function createApp() {
     },
   }));
 
-  // CSRF double-submit cookie: set a non-httpOnly token cookie that Angular reads
+  // CSRF double-submit cookie: set a non-httpOnly token cookie that the frontend reads
   app.use((req, res, next) => {
-    if (!req.cookies?.['XSRF-TOKEN'] && req.session) {
+    if (!req.cookies?.['XSRF-TOKEN']) {
       const token = crypto.randomBytes(32).toString('hex');
-      req.session.csrfToken = token;
       res.cookie('XSRF-TOKEN', token, {
         httpOnly: false,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: 'lax',
       });
     }
     next();
   });
 
-  // Validate CSRF token on mutating requests
+  // Validate CSRF: header must match cookie (standard double-submit pattern)
   app.use((req, res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
     const headerToken = req.headers['x-xsrf-token'] as string;
-    if (!headerToken || headerToken !== req.session?.csrfToken) {
-      res.status(403).json({ error: 'Invalid CSRF token' });
+    const cookieToken = req.cookies?.['XSRF-TOKEN'] as string;
+    if (!headerToken || !cookieToken || headerToken !== cookieToken) {
+      res.status(403).json({ error: 'Ungültiger CSRF-Token. Bitte Seite neu laden.' });
       return;
     }
     next();
