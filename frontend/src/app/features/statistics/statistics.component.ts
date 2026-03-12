@@ -18,6 +18,7 @@ Chart.register(...registerables, zoomPlugin);
 type ChartType = 'bar' | 'line' | 'doughnut';
 type Granularity = 'day' | 'week' | 'month';
 type QuickRange = 'week' | 'month' | 'year' | null;
+type ViewMode = 'project' | 'billable';
 
 interface SummaryRow {
   projectId: string;
@@ -62,6 +63,20 @@ interface SummaryRow {
               [class.text-gray-600]="quickRange() !== qr.value"
               [class.hover:bg-gray-50]="quickRange() !== qr.value">
               {{ qr.label }}
+            </button>
+          }
+        </div>
+
+        <!-- View mode -->
+        <div class="flex bg-gray-100 rounded-lg p-0.5">
+          @for (vm of viewModes; track vm.value) {
+            <button (click)="viewMode.set(vm.value)"
+              class="px-2.5 py-1 text-xs font-medium rounded-md transition-colors"
+              [class.bg-white]="viewMode() === vm.value"
+              [class.shadow-sm]="viewMode() === vm.value"
+              [class.text-gray-900]="viewMode() === vm.value"
+              [class.text-gray-500]="viewMode() !== vm.value">
+              {{ vm.label }}
             </button>
           }
         </div>
@@ -180,6 +195,7 @@ export class StatisticsComponent implements OnDestroy {
   readonly quickRange = signal<QuickRange>('month');
   readonly entries = signal<TimeEntry[]>([]);
   readonly loading = signal(false);
+  readonly viewMode = signal<ViewMode>('project');
 
   // Auto-granularity: <14 Tage → Tag, <6 Monate → Woche, sonst → Monat
   readonly autoGranularity = computed<Granularity>(() => {
@@ -209,6 +225,10 @@ export class StatisticsComponent implements OnDestroy {
     { value: 'month', label: 'Dieser Monat' },
     { value: 'year', label: 'Dieses Jahr' },
   ];
+  readonly viewModes: { value: ViewMode; label: string }[] = [
+    { value: 'project', label: 'Projekte' },
+    { value: 'billable', label: 'Abrechenbar' },
+  ];
 
   // Computed
   readonly totalHours = computed(() =>
@@ -221,22 +241,22 @@ export class StatisticsComponent implements OnDestroy {
     const total = this.totalHours();
     if (total === 0) return [];
 
-    const hoursByProject = new Map<string, number>();
+    const hoursByGroup = new Map<string, number>();
     for (const e of entries) {
-      const key = e.projectId ?? 'unassigned';
-      hoursByProject.set(
+      const key = this.getGroupKey(e, projectMap);
+      hoursByGroup.set(
         key,
-        (hoursByProject.get(key) ?? 0) + (e.end.getTime() - e.start.getTime()) / 3600000,
+        (hoursByGroup.get(key) ?? 0) + (e.end.getTime() - e.start.getTime()) / 3600000,
       );
     }
 
-    return [...hoursByProject.entries()]
-      .map(([projectId, hours]) => {
-        const project = projectMap.get(projectId);
+    return [...hoursByGroup.entries()]
+      .map(([groupKey, hours]) => {
+        const meta = this.getGroupMeta(groupKey, projectMap);
         return {
-          projectId,
-          name: project ? getProjectDisplayName(project) : 'Ohne Projekt',
-          color: project?.color ?? '#94a3b8',
+          projectId: groupKey,
+          name: meta.name,
+          color: meta.color,
           hours,
           percentage: (hours / total) * 100,
         };
@@ -268,6 +288,7 @@ export class StatisticsComponent implements OnDestroy {
       const type = this.chartType();
       const granularity = this.granularity();
       const projectMap = this.projectStore.projectMap();
+      this.viewMode(); // track view mode changes
       this.renderChart(canvas.nativeElement, entries, type, granularity, projectMap);
     });
   }
@@ -344,19 +365,19 @@ export class StatisticsComponent implements OnDestroy {
     entries: TimeEntry[],
     projectMap: Map<string, Project>,
   ) {
-    const hoursByProject = new Map<string, number>();
+    const hoursByGroup = new Map<string, number>();
     for (const e of entries) {
-      const key = e.projectId ?? 'unassigned';
-      hoursByProject.set(
+      const key = this.getGroupKey(e, projectMap);
+      hoursByGroup.set(
         key,
-        (hoursByProject.get(key) ?? 0) + (e.end.getTime() - e.start.getTime()) / 3600000,
+        (hoursByGroup.get(key) ?? 0) + (e.end.getTime() - e.start.getTime()) / 3600000,
       );
     }
 
-    const sorted = [...hoursByProject.entries()].sort((a, b) => b[1] - a[1]);
-    const labels = sorted.map(([id]) => { const p = projectMap.get(id); return p ? getProjectDisplayName(p) : 'Ohne Projekt'; });
+    const sorted = [...hoursByGroup.entries()].sort((a, b) => b[1] - a[1]);
+    const labels = sorted.map(([id]) => this.getGroupMeta(id, projectMap).name);
     const data = sorted.map(([, h]) => Math.round(h * 10) / 10);
-    const colors = sorted.map(([id]) => projectMap.get(id)?.color ?? '#94a3b8');
+    const colors = sorted.map(([id]) => this.getGroupMeta(id, projectMap).color);
 
     this.chart = new Chart(canvas, {
       type: 'doughnut',
@@ -400,15 +421,14 @@ export class StatisticsComponent implements OnDestroy {
 
     const buckets = this.generateBuckets(interval, granularity);
     this.currentBuckets = buckets;
-    const projectIds = [...new Set(entries.map(e => e.projectId ?? 'unassigned'))];
+    const groupKeys = [...new Set(entries.map(e => this.getGroupKey(e, projectMap)))];
 
-    const datasets = projectIds.map(projectId => {
-      const project = projectMap.get(projectId);
-      const color = project?.color ?? '#94a3b8';
+    const datasets = groupKeys.map(groupKey => {
+      const meta = this.getGroupMeta(groupKey, projectMap);
 
       const data = buckets.map(bucket => {
         const bucketEntries = entries.filter(e =>
-          (e.projectId ?? 'unassigned') === projectId &&
+          this.getGroupKey(e, projectMap) === groupKey &&
           e.start >= bucket.start && e.start < bucket.end
         );
         return Math.round(
@@ -417,10 +437,10 @@ export class StatisticsComponent implements OnDestroy {
       });
 
       return {
-        label: project ? getProjectDisplayName(project) : 'Ohne Projekt',
+        label: meta.name,
         data,
-        backgroundColor: type === 'bar' ? color : color + '20',
-        borderColor: color,
+        backgroundColor: type === 'bar' ? meta.color : meta.color + '20',
+        borderColor: meta.color,
         borderWidth: type === 'line' ? 2 : 0,
         fill: type === 'line',
         tension: 0.3,
@@ -486,6 +506,24 @@ export class StatisticsComponent implements OnDestroy {
         },
       },
     });
+  }
+
+  private getGroupKey(entry: TimeEntry, projectMap: Map<string, Project>): string {
+    if (this.viewMode() === 'billable') {
+      const project = entry.projectId ? projectMap.get(entry.projectId) : null;
+      return project?.billable ? '__billable' : '__non-billable';
+    }
+    return entry.projectId ?? 'unassigned';
+  }
+
+  private getGroupMeta(key: string, projectMap: Map<string, Project>): { name: string; color: string } {
+    if (key === '__billable') return { name: 'Abrechenbar', color: '#10b981' };
+    if (key === '__non-billable') return { name: 'Nicht abrechenbar', color: '#94a3b8' };
+    const project = projectMap.get(key);
+    return {
+      name: project ? getProjectDisplayName(project) : 'Ohne Projekt',
+      color: project?.color ?? '#94a3b8',
+    };
   }
 
   private generateBuckets(interval: { start: Date; end: Date }, granularity: Granularity) {
