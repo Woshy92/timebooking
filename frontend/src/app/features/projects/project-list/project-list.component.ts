@@ -200,12 +200,13 @@ export class ProjectListComponent {
   archiveConfirm = signal<{ project: Project; mappingCount: number } | null>(null);
   fadingOutIds = signal<Set<string>>(new Set());
 
-  /** Display order: non-ignored first (by order), then ignored (by order) */
+  /** Display order: favorites first, then normal, then ignored */
   readonly sortedProjects = computed(() => {
     const all = this.projectStore.activeProjects();
-    const normal = all.filter(p => !p.ignored);
+    const favorites = all.filter(p => p.favorite && !p.ignored);
+    const normal = all.filter(p => !p.favorite && !p.ignored);
     const ignored = all.filter(p => p.ignored);
-    return [...normal, ...ignored];
+    return [...favorites, ...normal, ...ignored];
   });
 
   openForm(project: Project | null) {
@@ -228,9 +229,20 @@ export class ProjectListComponent {
   }
 
   toggleFavorite(project: Project) {
-    const changes: Partial<Project> = { favorite: !project.favorite };
-    if (!project.favorite) changes.ignored = false;
+    const willBeFavorite = !project.favorite;
+    const changes: Partial<Project> = { favorite: willBeFavorite };
+    if (willBeFavorite) changes.ignored = false;
     this.projectStore.updateProject(project.id, changes);
+
+    if (willBeFavorite) {
+      setTimeout(() => {
+        this.fadingOutIds.update(s => new Set([...s, project.id]));
+      }, 300);
+      setTimeout(() => {
+        this.fadingOutIds.update(s => { const n = new Set(s); n.delete(project.id); return n; });
+        this.reorderByGroup();
+      }, 600);
+    }
   }
 
   toggleBillable(project: Project) {
@@ -258,7 +270,7 @@ export class ProjectListComponent {
           next.delete(project.id);
           return next;
         });
-        this.reorderIgnoredToBottom();
+        this.reorderByGroup();
       }, 600);
     } else {
       this.projectStore.updateProject(project.id, changes);
@@ -322,11 +334,11 @@ export class ProjectListComponent {
     this.dragOverId.set(null);
   }
 
-  private reorderIgnoredToBottom() {
+  private reorderByGroup() {
     const all = this.projectStore.activeProjects();
-    const normal = all.filter(p => !p.ignored);
+    const favorites = all.filter(p => p.favorite && !p.ignored);
+    const normal = all.filter(p => !p.favorite && !p.ignored);
     const ignored = all.filter(p => p.ignored);
-    const orderedIds = [...normal, ...ignored].map(p => p.id);
-    this.projectStore.reorderProjects(orderedIds);
+    this.projectStore.reorderProjects([...favorites, ...normal, ...ignored].map(p => p.id));
   }
 }
