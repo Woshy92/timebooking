@@ -47,6 +47,10 @@ import { environment } from '../environments/environment';
              class="px-3 py-1.5 rounded-md text-xs font-medium hover:text-white hover:bg-gray-800 transition-colors">
             Statistik
           </a>
+          <a routerLink="/rules" routerLinkActive="!text-white !bg-gray-800"
+             class="px-3 py-1.5 rounded-md text-xs font-medium hover:text-white hover:bg-gray-800 transition-colors">
+            Zuordnung
+          </a>
         </div>
       </div>
 
