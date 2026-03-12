@@ -172,10 +172,32 @@ export class IndexedDbAdapter implements StoragePort {
   // ─── Recurring Project Mappings ───────────────────────
 
   getRecurringProjectMappings(): Observable<RecurringProjectMapping[]> {
-    return from(
-      this.txAll<RecurringProjectMapping>(STORES.recurringMappings, s => s.getAll())
-        .then(items => items.map(i => ({ recurringEventId: i.recurringEventId, projectId: i.projectId, eventTitle: i.eventTitle ?? '' })))
-    );
+    return from(this.loadAndBackfillMappings());
+  }
+
+  private async loadAndBackfillMappings(): Promise<RecurringProjectMapping[]> {
+    const raw = await this.txAll<RecurringProjectMapping>(STORES.recurringMappings, s => s.getAll());
+    const mappings = raw.map(i => ({ recurringEventId: i.recurringEventId, projectId: i.projectId, eventTitle: i.eventTitle ?? '' }));
+
+    const needsBackfill = mappings.filter(m => !m.eventTitle);
+    if (needsBackfill.length === 0) return mappings;
+
+    // Backfill titles from stored time entries
+    const allEntries = await this.txAll<TimeEntry>(STORES.entries, s => s.getAll());
+    const titleMap = new Map<string, string>();
+    for (const e of allEntries) {
+      if (e.recurringEventId && e.title) titleMap.set(e.recurringEventId, e.title);
+    }
+
+    for (const m of needsBackfill) {
+      const title = titleMap.get(m.recurringEventId);
+      if (title) {
+        m.eventTitle = title;
+        await this.tx(STORES.recurringMappings, 'readwrite', s => s.put(m));
+      }
+    }
+
+    return mappings;
   }
 
   setRecurringProjectMapping(recurringEventId: string, projectId: string, eventTitle: string): Observable<void> {

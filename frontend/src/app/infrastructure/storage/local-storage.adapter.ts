@@ -91,12 +91,22 @@ export class LocalStorageAdapter implements StoragePort {
   }
 
   getRecurringProjectMappings(): Observable<RecurringProjectMapping[]> {
-    const raw = safeParse<Record<string, string> | RecurringProjectMapping[]>(localStorage.getItem(RECURRING_MAPPINGS_KEY), {});
-    // Backward compat: old format was { recurringEventId: projectId }
-    if (Array.isArray(raw)) {
-      return of(raw.map(m => ({ ...m, eventTitle: m.eventTitle ?? '' })));
+    const mappings = this.readMappingsArray();
+    const needsBackfill = mappings.filter(m => !m.eventTitle);
+    if (needsBackfill.length > 0) {
+      const entries = this.readAll<TimeEntry>(ENTRIES_KEY);
+      const titleMap = new Map<string, string>();
+      for (const e of entries) {
+        if (e.recurringEventId && e.title) titleMap.set(e.recurringEventId, e.title);
+      }
+      let changed = false;
+      for (const m of needsBackfill) {
+        const title = titleMap.get(m.recurringEventId);
+        if (title) { m.eventTitle = title; changed = true; }
+      }
+      if (changed) localStorage.setItem(RECURRING_MAPPINGS_KEY, JSON.stringify(mappings));
     }
-    return of(Object.entries(raw).map(([recurringEventId, projectId]) => ({ recurringEventId, projectId, eventTitle: '' })));
+    return of(mappings);
   }
 
   setRecurringProjectMapping(recurringEventId: string, projectId: string, eventTitle: string): Observable<void> {
