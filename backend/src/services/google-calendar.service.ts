@@ -12,6 +12,11 @@ export async function listEvents(tokens: Credentials, params: EventListParams) {
   const auth = createOAuth2Client();
   auth.setCredentials(tokens);
 
+  let refreshedTokens: Credentials | null = null;
+  auth.on('tokens', (newTokens) => {
+    refreshedTokens = { ...newTokens };
+  });
+
   const calendar = google.calendar({ version: 'v3', auth });
 
   const res = await calendar.events.list({
@@ -23,8 +28,8 @@ export async function listEvents(tokens: Credentials, params: EventListParams) {
     maxResults: 250,
   });
 
-  // Check if token was refreshed and return new tokens
-  const newTokens = auth.credentials;
+  // Merge refreshed tokens with original tokens to preserve refresh_token
+  const newTokens = refreshedTokens ? { ...tokens, ...refreshedTokens } : auth.credentials;
 
   const events = (res.data.items ?? [])
     .filter(e => e.start?.dateTime && e.end?.dateTime)
