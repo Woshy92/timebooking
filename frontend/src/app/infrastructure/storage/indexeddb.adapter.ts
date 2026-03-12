@@ -110,15 +110,40 @@ export class IndexedDbAdapter implements StoragePort {
   }
 
   private async doDeleteEntries(ids: string[]): Promise<string[]> {
+    const db = await this.openDb();
     const dismissedGoogleIds: string[] = [];
-    for (const id of ids) {
-      const existing = await this.tx<TimeEntry>(STORES.entries, 'readonly', s => s.get(id));
-      if (existing?.googleEventId) {
-        dismissedGoogleIds.push(existing.googleEventId);
-        await this.tx(STORES.dismissed, 'readwrite', s => s.put({ eventId: existing.googleEventId }));
+
+    // Read all entries in a single readonly transaction
+    const entries = await new Promise<TimeEntry[]>((resolve, reject) => {
+      const tx = db.transaction(STORES.entries, 'readonly');
+      const store = tx.objectStore(STORES.entries);
+      const results: TimeEntry[] = [];
+      for (const id of ids) {
+        const req = store.get(id);
+        req.onsuccess = () => { if (req.result) results.push(req.result); };
       }
-      await this.tx(STORES.entries, 'readwrite', s => s.delete(id));
+      tx.oncomplete = () => resolve(results);
+      tx.onerror = () => reject(tx.error);
+    });
+
+    for (const e of entries) {
+      if (e.googleEventId) dismissedGoogleIds.push(e.googleEventId);
     }
+
+    // Write all deletes + dismissals in a single readwrite transaction
+    await new Promise<void>((resolve, reject) => {
+      const storeNames = [STORES.entries, ...(dismissedGoogleIds.length > 0 ? [STORES.dismissed] : [])];
+      const tx = db.transaction(storeNames, 'readwrite');
+      const entryStore = tx.objectStore(STORES.entries);
+      for (const id of ids) entryStore.delete(id);
+      if (dismissedGoogleIds.length > 0) {
+        const dismissedStore = tx.objectStore(STORES.dismissed);
+        for (const eventId of dismissedGoogleIds) dismissedStore.put({ eventId });
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+
     return dismissedGoogleIds;
   }
 
