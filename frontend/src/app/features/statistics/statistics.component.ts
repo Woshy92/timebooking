@@ -8,7 +8,7 @@ import { Project, getProjectDisplayName } from '../../domain/models/project.mode
 import {
   startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear,
   endOfDay, format, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval,
-  getISOWeek, differenceInDays,
+  getISOWeek, differenceInDays, addDays,
 } from 'date-fns';
 import { Chart, registerables } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
@@ -135,8 +135,34 @@ interface SummaryRow {
             Keine Einträge im gewählten Zeitraum
           </div>
         }
-        <canvas #chartCanvas [class.invisible]="loading() || entries().length === 0"></canvas>
+        <canvas #chartCanvas [class.invisible]="loading() || entries().length === 0"
+          (contextmenu)="onChartContextMenu($event)"></canvas>
+        @if (hiddenGroupKeys().size > 0) {
+          <button (click)="showAll()"
+            class="absolute top-2 right-2 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors">
+            {{ hiddenGroupKeys().size }} ausgeblendet – Alle anzeigen
+          </button>
+        }
       </div>
+
+      @if (contextMenu(); as menu) {
+        <div class="fixed inset-0 z-40" (click)="closeContextMenu()" (contextmenu)="$event.preventDefault(); closeContextMenu()"></div>
+        <div class="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[220px]"
+          [style.left.px]="menu.x"
+          [style.top.px]="menu.y">
+          <button (click)="selectAllExcept()"
+            class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+            Alles auswählen außer „{{ menu.label }}"
+          </button>
+          @if (hiddenGroupKeys().size > 0) {
+            <div class="border-t border-gray-100 my-1"></div>
+            <button (click)="showAll()"
+              class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+              Alle anzeigen
+            </button>
+          }
+        </div>
+      }
 
       <!-- Summary table -->
       @if (summaryData().length > 0) {
@@ -159,13 +185,13 @@ interface SummaryRow {
                       {{ row.name }}
                     </div>
                   </td>
-                  <td class="text-right px-4 py-3 tabular-nums">{{ row.hours.toFixed(1) }}h</td>
+                  <td class="text-right px-4 py-3 tabular-nums">{{ formatTime(row.hours) }}</td>
                   <td class="text-right px-4 py-3 tabular-nums text-gray-500">{{ row.percentage.toFixed(1) }}%</td>
                 </tr>
               }
               <tr class="bg-gray-50 font-medium">
                 <td class="px-4 py-3">Gesamt</td>
-                <td class="text-right px-4 py-3 tabular-nums">{{ totalHours().toFixed(1) }}h</td>
+                <td class="text-right px-4 py-3 tabular-nums">{{ formatTime(visibleTotalHours()) }}</td>
                 <td class="text-right px-4 py-3 tabular-nums">100%</td>
               </tr>
             </tbody>
@@ -196,6 +222,9 @@ export class StatisticsComponent implements OnDestroy {
   readonly entries = signal<TimeEntry[]>([]);
   readonly loading = signal(false);
   readonly viewMode = signal<ViewMode>('project');
+  readonly contextMenu = signal<{ x: number; y: number; groupKey: string; label: string } | null>(null);
+  readonly hiddenGroupKeys = signal<Set<string>>(new Set());
+  private chartGroupKeys: string[] = [];
 
   // Auto-granularity: <14 Tage → Tag, <6 Monate → Woche, sonst → Monat
   readonly autoGranularity = computed<Granularity>(() => {
@@ -238,17 +267,20 @@ export class StatisticsComponent implements OnDestroy {
   readonly summaryData = computed<SummaryRow[]>(() => {
     const entries = this.entries();
     const projectMap = this.projectStore.projectMap();
-    const total = this.totalHours();
-    if (total === 0) return [];
+    const hidden = this.hiddenGroupKeys();
 
     const hoursByGroup = new Map<string, number>();
     for (const e of entries) {
       const key = this.getGroupKey(e, projectMap);
+      if (hidden.has(key)) continue;
       hoursByGroup.set(
         key,
         (hoursByGroup.get(key) ?? 0) + (e.end.getTime() - e.start.getTime()) / 3600000,
       );
     }
+
+    const total = [...hoursByGroup.values()].reduce((a, b) => a + b, 0);
+    if (total === 0) return [];
 
     return [...hoursByGroup.entries()]
       .map(([groupKey, hours]) => {
@@ -263,6 +295,10 @@ export class StatisticsComponent implements OnDestroy {
       })
       .sort((a, b) => b.hours - a.hours);
   });
+
+  readonly visibleTotalHours = computed(() =>
+    this.summaryData().reduce((sum, row) => sum + row.hours, 0)
+  );
 
   private chart: Chart | null = null;
   private currentBuckets: { start: Date; end: Date; label: string }[] = [];
@@ -289,6 +325,7 @@ export class StatisticsComponent implements OnDestroy {
       const granularity = this.granularity();
       const projectMap = this.projectStore.projectMap();
       this.viewMode(); // track view mode changes
+      this.hiddenGroupKeys(); // track hidden groups
       this.renderChart(canvas.nativeElement, entries, type, granularity, projectMap);
     });
   }
@@ -315,8 +352,9 @@ export class StatisticsComponent implements OnDestroy {
     this.granularityOverride.set(null);
     switch (range) {
       case 'week':
-        this.rangeFrom.set(format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
-        this.rangeTo.set(format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+        const monday = startOfWeek(now, { weekStartsOn: 1 });
+        this.rangeFrom.set(format(monday, 'yyyy-MM-dd'));
+        this.rangeTo.set(format(addDays(monday, 4), 'yyyy-MM-dd'));
         break;
       case 'month':
         this.rangeFrom.set(format(startOfMonth(now), 'yyyy-MM-dd'));
@@ -331,6 +369,57 @@ export class StatisticsComponent implements OnDestroy {
 
   ngOnDestroy() {
     this.chart?.destroy();
+  }
+
+  formatTime(hours: number): string {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    return `${h}:${m.toString().padStart(2, '0')}`;
+  }
+
+  onChartContextMenu(event: MouseEvent) {
+    event.preventDefault();
+    if (!this.chart) return;
+
+    const elements = this.chart.getElementsAtEventForMode(
+      event as any, 'nearest', { intersect: true }, false,
+    );
+    if (elements.length === 0) {
+      this.contextMenu.set(null);
+      return;
+    }
+
+    const el = elements[0];
+    const isDoughnut = this.chartType() === 'doughnut';
+    const idx = isDoughnut ? el.index : el.datasetIndex;
+    const groupKey = this.chartGroupKeys[idx];
+    if (!groupKey) return;
+
+    const projectMap = this.projectStore.projectMap();
+    const meta = this.getGroupMeta(groupKey, projectMap);
+
+    this.contextMenu.set({
+      x: event.clientX,
+      y: event.clientY,
+      groupKey,
+      label: meta.name,
+    });
+  }
+
+  selectAllExcept() {
+    const menu = this.contextMenu();
+    if (!menu) return;
+    this.hiddenGroupKeys.set(new Set([menu.groupKey]));
+    this.contextMenu.set(null);
+  }
+
+  showAll() {
+    this.hiddenGroupKeys.set(new Set());
+    this.contextMenu.set(null);
+  }
+
+  closeContextMenu() {
+    this.contextMenu.set(null);
   }
 
   private loadData(from: Date, to: Date) {
@@ -365,9 +454,11 @@ export class StatisticsComponent implements OnDestroy {
     entries: TimeEntry[],
     projectMap: Map<string, Project>,
   ) {
+    const hidden = this.hiddenGroupKeys();
     const hoursByGroup = new Map<string, number>();
     for (const e of entries) {
       const key = this.getGroupKey(e, projectMap);
+      if (hidden.has(key)) continue;
       hoursByGroup.set(
         key,
         (hoursByGroup.get(key) ?? 0) + (e.end.getTime() - e.start.getTime()) / 3600000,
@@ -375,11 +466,12 @@ export class StatisticsComponent implements OnDestroy {
     }
 
     const sorted = [...hoursByGroup.entries()].sort((a, b) => b[1] - a[1]);
+    this.chartGroupKeys = sorted.map(([id]) => id);
     const labels = sorted.map(([id]) => this.getGroupMeta(id, projectMap).name);
     const data = sorted.map(([, h]) => Math.round(h * 10) / 10);
     const colors = sorted.map(([id]) => this.getGroupMeta(id, projectMap).color);
-
     const total = data.reduce((a, b) => a + b, 0);
+    const fmt = this.formatTime.bind(this);
 
     this.chart = new Chart(canvas, {
       type: 'doughnut',
@@ -402,7 +494,7 @@ export class StatisticsComponent implements OnDestroy {
           },
           tooltip: {
             callbacks: {
-              label: (ctx) => ` ${ctx.label}: ${ctx.parsed}h (${(ctx.parsed / total * 100).toFixed(1)}%)`,
+              label: (ctx) => ` ${ctx.label}: ${fmt(ctx.parsed)} (${(ctx.parsed / total * 100).toFixed(1)}%)`,
             },
           },
         },
@@ -418,7 +510,7 @@ export class StatisticsComponent implements OnDestroy {
             const arc = meta.data[i] as any;
             const value = dataset.data[i] as number;
             const pct = total > 0 ? (value / total * 100) : 0;
-            if (pct < 5) continue; // skip tiny slices
+            if (pct < 5) continue;
             const midAngle = (arc.startAngle + arc.endAngle) / 2;
             const midRadius = (arc.innerRadius + arc.outerRadius) / 2;
             const x = arc.x + Math.cos(midAngle) * midRadius;
@@ -445,10 +537,13 @@ export class StatisticsComponent implements OnDestroy {
     const from = new Date(this.rangeFrom());
     const to = endOfDay(new Date(this.rangeTo()));
     const interval = { start: from, end: to };
+    const hidden = this.hiddenGroupKeys();
 
     const buckets = this.generateBuckets(interval, granularity);
     this.currentBuckets = buckets;
-    const groupKeys = [...new Set(entries.map(e => this.getGroupKey(e, projectMap)))];
+    const groupKeys = [...new Set(entries.map(e => this.getGroupKey(e, projectMap)))]
+      .filter(k => !hidden.has(k));
+    this.chartGroupKeys = groupKeys;
 
     const datasets = groupKeys.map(groupKey => {
       const meta = this.getGroupMeta(groupKey, projectMap);
@@ -476,6 +571,8 @@ export class StatisticsComponent implements OnDestroy {
       };
     });
 
+    const fmt = this.formatTime.bind(this);
+
     this.chart = new Chart(canvas, {
       type,
       data: { labels: buckets.map(b => b.label), datasets },
@@ -493,7 +590,10 @@ export class StatisticsComponent implements OnDestroy {
             stacked: type === 'bar',
             beginAtZero: true,
             title: { display: true, text: 'Stunden', font: { size: 12 } },
-            ticks: { font: { size: 11 } },
+            ticks: {
+              font: { size: 11 },
+              callback: (value: any) => fmt(value),
+            },
           },
         },
         plugins: {
@@ -502,7 +602,7 @@ export class StatisticsComponent implements OnDestroy {
           },
           tooltip: {
             callbacks: {
-              label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y}h`,
+              label: (ctx) => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y ?? 0)}`,
             },
           },
           zoom: {
@@ -532,6 +632,33 @@ export class StatisticsComponent implements OnDestroy {
           },
         },
       },
+      plugins: type === 'bar' ? [{
+        id: 'barTotalLabels',
+        afterDraw(chart: any) {
+          const ctx = chart.ctx;
+          const meta0 = chart.getDatasetMeta(0);
+          if (!meta0 || meta0.data.length === 0) return;
+          ctx.save();
+          ctx.font = '600 11px sans-serif';
+          ctx.fillStyle = '#374151';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          for (let i = 0; i < meta0.data.length; i++) {
+            let total = 0;
+            let topY = Infinity;
+            for (let d = 0; d < chart.data.datasets.length; d++) {
+              const dsMeta = chart.getDatasetMeta(d);
+              if (dsMeta.hidden) continue;
+              total += (chart.data.datasets[d].data[i] as number) || 0;
+              if (dsMeta.data[i]) topY = Math.min(topY, (dsMeta.data[i] as any).y);
+            }
+            if (total > 0) {
+              ctx.fillText(fmt(total), (meta0.data[i] as any).x, topY - 4);
+            }
+          }
+          ctx.restore();
+        },
+      }] : [],
     });
   }
 
@@ -556,11 +683,13 @@ export class StatisticsComponent implements OnDestroy {
   private generateBuckets(interval: { start: Date; end: Date }, granularity: Granularity) {
     switch (granularity) {
       case 'day':
-        return eachDayOfInterval(interval).map(d => ({
-          start: d,
-          end: endOfDay(d),
-          label: format(d, 'dd.MM.'),
-        }));
+        return eachDayOfInterval(interval)
+          .filter(d => d.getDay() !== 0 && d.getDay() !== 6)
+          .map(d => ({
+            start: d,
+            end: endOfDay(d),
+            label: format(d, 'dd.MM.'),
+          }));
       case 'week':
         return eachWeekOfInterval(interval, { weekStartsOn: 1 }).map(d => ({
           start: d,
