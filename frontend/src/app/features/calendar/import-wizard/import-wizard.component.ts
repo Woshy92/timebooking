@@ -35,14 +35,14 @@ type HistoryAction = { type: 'import'; eventId: string; entryId?: string } | { t
             <div class="space-y-3">
               <!-- Progress -->
               <div class="flex items-center justify-between text-xs text-gray-400">
-                <span>Termin {{ currentIndex() + 1 }} von {{ manualEvents().length }}</span>
+                <span>Termin {{ currentIndex() + 1 }} von {{ eventsToProcess().length }}</span>
                 @if (autoImportedCount() > 0) {
                   <span>{{ autoImportedCount() }} automatisch importiert</span>
                 }
               </div>
               <div class="h-1 bg-gray-100 rounded-full overflow-hidden">
                 <div class="h-full bg-indigo-500 rounded-full transition-all duration-300"
-                     [style.width.%]="((currentIndex()) / manualEvents().length) * 100"></div>
+                     [style.width.%]="((currentIndex()) / eventsToProcess().length) * 100"></div>
               </div>
 
               <!-- Event details -->
@@ -236,17 +236,20 @@ export class ImportWizardComponent {
     return allEvents.filter(e => !bookedIds.has(e.id) && !dismissedIds.has(e.id));
   });
 
-  /** Events that need manual project assignment */
-  readonly manualEvents = computed(() => {
+  /** Events that need manual project assignment (used only for initial computation) */
+  private readonly manualEventsComputed = computed(() => {
     const mappings = this.timeEntryStore.recurringMappingMap();
     return this.visibleEvents().filter(ev =>
       !ev.recurringEventId || !mappings.has(ev.recurringEventId)
     );
   });
 
+  /** Snapshotted list of events to process — does not shrink reactively */
+  readonly eventsToProcess = signal<CalendarEvent[]>([]);
+
   readonly currentEvent = computed(() => {
     const idx = this.currentIndex();
-    const events = this.manualEvents();
+    const events = this.eventsToProcess();
     return idx < events.length ? events[idx] : null;
   });
 
@@ -301,7 +304,10 @@ export class ImportWizardComponent {
     this.autoImportedCount.set(autoEvents.length);
     this.importedCount.set(autoEvents.length);
 
-    if (this.manualEvents().length === 0) {
+    // Snapshot the manual events so the list doesn't shrink during iteration
+    this.eventsToProcess.set(this.manualEventsComputed());
+
+    if (this.eventsToProcess().length === 0) {
       this.step.set(this.importedCount() > 0 ? 'gaps' : 'done');
     } else {
       this.step.set('assign');
@@ -314,6 +320,31 @@ export class ImportWizardComponent {
 
     if (ev.recurringEventId && this.applyToSeries() && projectId) {
       this.timeEntryStore.setRecurringProjectMapping(ev.recurringEventId, projectId, ev.title);
+
+      // Auto-import remaining events in this series and remove from snapshot
+      const currentIdx = this.currentIndex();
+      const seriesEvents = this.eventsToProcess().filter(
+        (e, i) => i > currentIdx && e.recurringEventId === ev.recurringEventId
+      );
+      for (const seriesEv of seriesEvents) {
+        this.timeEntryStore.addEntry({
+          title: seriesEv.title,
+          start: seriesEv.start,
+          end: seriesEv.end,
+          projectId,
+          source: 'google',
+          googleEventId: seriesEv.id,
+          recurringEventId: seriesEv.recurringEventId,
+          description: seriesEv.description || undefined,
+          attendees: seriesEv.attendees?.length ? seriesEv.attendees : undefined,
+        });
+        this.importedCount.update(c => c + 1);
+        this.autoImportedCount.update(c => c + 1);
+      }
+      if (seriesEvents.length > 0) {
+        const seriesIds = new Set(seriesEvents.map(e => e.id));
+        this.eventsToProcess.update(events => events.filter(e => !seriesIds.has(e.id)));
+      }
     }
 
     this.timeEntryStore.addEntry({
@@ -392,7 +423,7 @@ export class ImportWizardComponent {
 
   private advance() {
     const nextIndex = this.currentIndex() + 1;
-    if (nextIndex >= this.manualEvents().length) {
+    if (nextIndex >= this.eventsToProcess().length) {
       this.step.set(this.importedCount() > 0 ? 'gaps' : 'done');
     } else {
       this.currentIndex.set(nextIndex);
