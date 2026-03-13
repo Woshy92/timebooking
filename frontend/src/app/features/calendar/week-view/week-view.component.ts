@@ -34,30 +34,43 @@ const MIN_BLOCK_HEIGHT = 26;
       <!-- Default project bar -->
       <div class="flex items-center gap-3 px-4 py-1.5 border-b border-gray-100 bg-gray-50/40">
         <app-project-pills-bar class="flex-1 min-w-0" />
-        <div class="ml-auto flex items-center gap-0.5 text-[11px] text-gray-400 tabular-nums select-none">
-          <button (click)="uiStore.setViewStartHour(uiStore.viewStartHour() - 1)"
-            class="p-0.5 rounded hover:bg-gray-200 hover:text-gray-600 transition-colors"
-            title="Früherer Start">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-            </svg>
-          </button>
-          <button (click)="uiStore.setViewStartHour(uiStore.viewStartHour() + 1)"
-            class="px-1 py-0.5 rounded hover:bg-gray-200 hover:text-gray-600 font-medium transition-colors">
-            {{ uiStore.viewStartHour() }}
-          </button>
-          <span class="text-gray-300">–</span>
-          <button (click)="uiStore.setViewEndHour(uiStore.viewEndHour() - 1)"
-            class="px-1 py-0.5 rounded hover:bg-gray-200 hover:text-gray-600 font-medium transition-colors">
-            {{ uiStore.viewEndHour() }}
-          </button>
-          <button (click)="uiStore.setViewEndHour(uiStore.viewEndHour() + 1)"
-            class="p-0.5 rounded hover:bg-gray-200 hover:text-gray-600 transition-colors"
-            title="Späteres Ende">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-            </svg>
-          </button>
+        <div class="ml-auto flex items-center gap-3 text-[11px] text-gray-400 tabular-nums select-none">
+          <div class="flex items-center gap-1">
+            <span class="text-gray-400 font-medium mr-0.5">Von</span>
+            <button (click)="uiStore.setViewStartHour(uiStore.viewStartHour() - 1)"
+              class="p-0.5 rounded hover:bg-gray-200 hover:text-gray-600 transition-colors"
+              title="Früherer Start">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+              </svg>
+            </button>
+            <span class="font-semibold text-gray-600 min-w-[32px] text-center">{{ uiStore.viewStartHour() < 10 ? '0' + uiStore.viewStartHour() : uiStore.viewStartHour() }}:00</span>
+            <button (click)="uiStore.setViewStartHour(uiStore.viewStartHour() + 1)"
+              class="p-0.5 rounded hover:bg-gray-200 hover:text-gray-600 transition-colors"
+              title="Späterer Start">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+              </svg>
+            </button>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="text-gray-400 font-medium mr-0.5">Bis</span>
+            <button (click)="uiStore.setViewEndHour(uiStore.viewEndHour() - 1)"
+              class="p-0.5 rounded hover:bg-gray-200 hover:text-gray-600 transition-colors"
+              title="Früheres Ende">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+              </svg>
+            </button>
+            <span class="font-semibold text-gray-600 min-w-[32px] text-center">{{ uiStore.viewEndHour() < 10 ? '0' + uiStore.viewEndHour() : uiStore.viewEndHour() }}:00</span>
+            <button (click)="uiStore.setViewEndHour(uiStore.viewEndHour() + 1)"
+              class="p-0.5 rounded hover:bg-gray-200 hover:text-gray-600 transition-colors"
+              title="Späteres Ende">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <app-clear-confirm-popover
           [entryCount]="weekEntryCount()"
@@ -276,7 +289,16 @@ const MIN_BLOCK_HEIGHT = 26;
                       <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>
                       </svg>
-                      <div class="text-[11px] font-medium truncate">Pause</div>
+                      <div class="text-[11px] font-medium truncate flex-1 min-w-0">Pause</div>
+                      <button
+                        class="opacity-0 group-hover:opacity-100 p-0.5 -mr-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
+                        title="Löschen"
+                        (click)="interaction.deleteSingleEntry($event, entry)"
+                      >
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                      </button>
                     </div>
                     <div class="text-[10px] tabular-nums text-gray-400 flex-shrink overflow-hidden leading-tight" style="opacity: 0.7">
                       {{ formatTime(interaction.getEffectiveStart(entry)) }}–{{ formatTime(interaction.getEffectiveEnd(entry)) }}
@@ -322,7 +344,7 @@ const MIN_BLOCK_HEIGHT = 26;
                 >
                   <div class="px-2 py-1 h-full flex flex-col overflow-hidden">
                     <div class="flex items-center gap-1 flex-shrink-0">
-                      <div class="text-[11px] font-semibold truncate" [style.color]="getEntryTextColor(entry)">
+                      <div class="text-[11px] font-semibold truncate flex-1 min-w-0" [style.color]="getEntryTextColor(entry)">
                         {{ entry.title || 'Ohne Beschreibung' }}
                       </div>
                       @if (entry.source === 'google') {
@@ -333,6 +355,15 @@ const MIN_BLOCK_HEIGHT = 26;
                           <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                         </svg>
                       }
+                      <button
+                        class="opacity-0 group-hover:opacity-100 p-0.5 -mr-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
+                        title="Löschen"
+                        (click)="interaction.deleteSingleEntry($event, entry)"
+                      >
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                      </button>
                     </div>
                     <div class="text-[10px] tabular-nums flex-shrink overflow-hidden leading-tight" [style.color]="interaction.getEntryColor(entry)" style="opacity: 0.7">
                       {{ formatTime(interaction.getEffectiveStart(entry)) }}–{{ formatTime(interaction.getEffectiveEnd(entry)) }}
