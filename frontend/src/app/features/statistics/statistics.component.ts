@@ -379,6 +379,8 @@ export class StatisticsComponent implements OnDestroy {
     const data = sorted.map(([, h]) => Math.round(h * 10) / 10);
     const colors = sorted.map(([id]) => this.getGroupMeta(id, projectMap).color);
 
+    const total = data.reduce((a, b) => a + b, 0);
+
     this.chart = new Chart(canvas, {
       type: 'doughnut',
       data: {
@@ -400,11 +402,36 @@ export class StatisticsComponent implements OnDestroy {
           },
           tooltip: {
             callbacks: {
-              label: (ctx) => ` ${ctx.label}: ${ctx.parsed}h`,
+              label: (ctx) => ` ${ctx.label}: ${ctx.parsed}h (${(ctx.parsed / total * 100).toFixed(1)}%)`,
             },
           },
         },
       },
+      plugins: [{
+        id: 'doughnutPercentLabels',
+        afterDraw(chart) {
+          const { ctx: c } = chart;
+          const dataset = chart.data.datasets[0];
+          const meta = chart.getDatasetMeta(0);
+          c.save();
+          for (let i = 0; i < meta.data.length; i++) {
+            const arc = meta.data[i] as any;
+            const value = dataset.data[i] as number;
+            const pct = total > 0 ? (value / total * 100) : 0;
+            if (pct < 5) continue; // skip tiny slices
+            const midAngle = (arc.startAngle + arc.endAngle) / 2;
+            const midRadius = (arc.innerRadius + arc.outerRadius) / 2;
+            const x = arc.x + Math.cos(midAngle) * midRadius;
+            const y = arc.y + Math.sin(midAngle) * midRadius;
+            c.fillStyle = '#fff';
+            c.font = 'bold 12px sans-serif';
+            c.textAlign = 'center';
+            c.textBaseline = 'middle';
+            c.fillText(`${pct.toFixed(0)}%`, x, y);
+          }
+          c.restore();
+        },
+      }],
     });
   }
 
