@@ -1,20 +1,22 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { ExportPort, ExportOptions } from '../../domain/ports/export.port';
-import { getProjectDisplayName } from '../../domain/models/project.model';
+import { Project, getProjectDisplayName } from '../../domain/models/project.model';
+import { formatHoursAsHHMM, excludePauses, buildHoursMatrix } from './export-summary.util';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { format, eachDayOfInterval, isSameDay } from 'date-fns';
+import { format, eachDayOfInterval } from 'date-fns';
 import { de } from 'date-fns/locale';
 
-function formatHoursAsHHMM(hours: number): string {
-  const totalMinutes = Math.round(hours * 60);
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
-  return `${h}:${String(m).padStart(2, '0')}`;
-}
+type Rgb = [number, number, number];
 
-function parseHexColor(color: string): [number, number, number] | null {
+// Tint factors used to lighten a project colour towards white for table backgrounds.
+// Higher factor → lighter background. Centralised here so every table uses the same scale.
+const HEADER_TINT = 0.82; // grouped-view project header rows
+const SUMMARY_ROW_TINT = 0.88; // detail + summary table body rows
+const ENTRY_ROW_TINT = 0.93; // grouped-view entry rows
+
+function parseHexColor(color: string): Rgb | null {
   const match = /^#?([0-9a-fA-F]{6})$/.exec(color);
   if (!match) return null;
   const hex = match[1];
@@ -25,6 +27,46 @@ function parseHexColor(color: string): [number, number, number] | null {
   ];
 }
 
+/** Lightens an RGB colour towards white by `factor` (0 = unchanged, 1 = white). */
+function tint([r, g, b]: Rgb, factor: number): Rgb {
+  return [
+    Math.round(r + (255 - r) * factor),
+    Math.round(g + (255 - g) * factor),
+    Math.round(b + (255 - b) * factor),
+  ];
+}
+
+interface ProjectColors {
+  /** Full-strength project colour (used for the colour dot). */
+  readonly rgb: Rgb;
+  /** Background tint for grouped-view header rows. */
+  readonly headerTint: Rgb;
+  /** Background tint for detail/summary body rows. */
+  readonly rowTint: Rgb;
+  /** Background tint for grouped-view entry rows. */
+  readonly entryTint: Rgb;
+}
+
+/**
+ * Pre-computes per-project colour variants once, so the per-cell autoTable hooks
+ * (didParseCell/didDrawCell) only look up a Map instead of re-parsing the hex
+ * colour and recomputing tints for every cell.
+ */
+function buildProjectColorMap(projects: Project[]): Map<string, ProjectColors> {
+  const map = new Map<string, ProjectColors>();
+  for (const project of projects) {
+    const rgb = project.color ? parseHexColor(project.color) : null;
+    if (!rgb) continue;
+    map.set(project.id, {
+      rgb,
+      headerTint: tint(rgb, HEADER_TINT),
+      rowTint: tint(rgb, SUMMARY_ROW_TINT),
+      entryTint: tint(rgb, ENTRY_ROW_TINT),
+    });
+  }
+  return map;
+}
+
 @Injectable()
 export class PdfExportAdapter implements ExportPort {
   readonly format = 'pdf';
@@ -32,6 +74,7 @@ export class PdfExportAdapter implements ExportPort {
   export(options: ExportOptions): Observable<Blob> {
     const doc = new jsPDF({ orientation: 'landscape' });
     const projectMap = new Map(options.projects.map(p => [p.id, p]));
+    const colorMap = buildProjectColorMap(options.projects);
 
     doc.setFontSize(18);
     doc.text('Zeiterfassung', 14, 22);
@@ -45,11 +88,9 @@ export class PdfExportAdapter implements ExportPort {
     const sortedEntries = options.entries
       .sort((a, b) => a.start.getTime() - b.start.getTime());
 
-    // Entscheidung: Pausen-Einträge (pause=true) erscheinen in der Detailtabelle klar als
-    // 'Pause' markiert (Transparenz für den Stundenzettel), zählen aber – konsistent zur
-    // App-Ansicht (Tages-/Wochensumme filtert mit !e.pause) – NICHT in Summen, die
-    // Zusammenfassung oder die Projektgruppierung. Aggregationen nutzen workEntries.
-    const workEntries = sortedEntries.filter(e => !e.pause);
+    // Pausen-Einträge erscheinen in der Detailtabelle als 'Pause', zählen aber nicht in
+    // Summen/Zusammenfassung/Projektgruppierung (siehe excludePauses).
+    const workEntries = excludePauses(sortedEntries);
 
     const rows = sortedEntries.map(entry => [
       format(entry.start, 'dd.MM.yyyy'),
@@ -77,15 +118,9 @@ export class PdfExportAdapter implements ExportPort {
         if (data.section === 'body') {
           const entry = sortedEntries[data.row.index];
           if (entry && !entry.pause && entry.projectId) {
-            const project = projectMap.get(entry.projectId);
-            const rgb = project?.color ? parseHexColor(project.color) : null;
-            if (rgb) {
-              const [r, g, b] = rgb;
-              data.cell.styles.fillColor = [
-                Math.round(r + (255 - r) * 0.88),
-                Math.round(g + (255 - g) * 0.88),
-                Math.round(b + (255 - b) * 0.88),
-              ];
+            const colors = colorMap.get(entry.projectId);
+            if (colors) {
+              data.cell.styles.fillColor = colors.rowTint;
             }
           }
         }
@@ -94,10 +129,9 @@ export class PdfExportAdapter implements ExportPort {
         if (data.section === 'body' && data.column.index === 4) {
           const entry = sortedEntries[data.row.index];
           if (entry && !entry.pause && entry.projectId) {
-            const project = projectMap.get(entry.projectId);
-            const rgb = project?.color ? parseHexColor(project.color) : null;
-            if (rgb) {
-              const [r, g, b] = rgb;
+            const colors = colorMap.get(entry.projectId);
+            if (colors) {
+              const [r, g, b] = colors.rgb;
               doc.setFillColor(r, g, b);
               doc.circle(data.cell.x + 3.5, data.cell.y + data.cell.height / 2, 1.5, 'F');
             }
@@ -119,45 +153,27 @@ export class PdfExportAdapter implements ExportPort {
       );
 
       const days = eachDayOfInterval({ start: options.dateRange.from, end: options.dateRange.to });
-      const usedProjectIds = [...new Set(workEntries.map(e => e.projectId).filter(Boolean))] as string[];
+      const matrix = buildHoursMatrix(workEntries, days);
+      const usedProjectIds = matrix.projectIds;
 
       const summaryHead = ['Projekt', ...days.map(d => format(d, 'EEE dd.MM.', { locale: de })), 'Gesamt'];
       const summaryBody: (string | number)[][] = [];
-      const dayTotals = new Array(days.length).fill(0);
-      let grandTotal = 0;
 
       for (const projectId of usedProjectIds) {
         const project = projectMap.get(projectId);
+        const perDay = matrix.projectHours.get(projectId)!;
         const row: (string | number)[] = [project ? getProjectDisplayName(project) : ''];
-        let projectTotal = 0;
-        days.forEach((day, i) => {
-          const hours = workEntries
-            .filter(e => e.projectId === projectId && isSameDay(new Date(e.start), day))
-            .reduce((sum, e) => sum + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000, 0);
-          row.push(hours > 0 ? formatHoursAsHHMM(hours) : '');
-          projectTotal += hours;
-          dayTotals[i] += hours;
-        });
-        row.push(formatHoursAsHHMM(projectTotal));
-        grandTotal += projectTotal;
+        days.forEach((_, i) => row.push(perDay[i] > 0 ? formatHoursAsHHMM(perDay[i]) : ''));
+        row.push(formatHoursAsHHMM(matrix.projectTotals.get(projectId)!));
         summaryBody.push(row);
       }
 
       // Entries without project (Pausen sind hier bereits ausgeschlossen, da workEntries genutzt wird)
-      const noProjectHours = days.map((day, i) => {
-        const hours = workEntries
-          .filter(e => !e.projectId && isSameDay(new Date(e.start), day))
-          .reduce((sum, e) => sum + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000, 0);
-        dayTotals[i] += hours;
-        return hours;
-      });
-      const noProjectTotal = noProjectHours.reduce((a, b) => a + b, 0);
-      if (noProjectTotal > 0) {
-        grandTotal += noProjectTotal;
-        summaryBody.push(['Ohne Projekt', ...noProjectHours.map(h => h > 0 ? formatHoursAsHHMM(h) : ''), formatHoursAsHHMM(noProjectTotal)]);
+      if (matrix.noProjectTotal > 0) {
+        summaryBody.push(['Ohne Projekt', ...matrix.noProjectHours.map(h => h > 0 ? formatHoursAsHHMM(h) : ''), formatHoursAsHHMM(matrix.noProjectTotal)]);
       }
 
-      const summaryFoot = ['Gesamt', ...dayTotals.map(h => h > 0 ? formatHoursAsHHMM(h) : ''), formatHoursAsHHMM(grandTotal)];
+      const summaryFoot = ['Gesamt', ...matrix.dayTotals.map(h => h > 0 ? formatHoursAsHHMM(h) : ''), formatHoursAsHHMM(matrix.grandTotal)];
 
       autoTable(doc, {
         startY: 40,
@@ -171,25 +187,18 @@ export class PdfExportAdapter implements ExportPort {
         didParseCell: (data) => {
           if (data.section === 'body') {
             const pId = usedProjectIds[data.row.index] ?? null;
-            const project = pId ? projectMap.get(pId) : null;
-            const rgb = project?.color ? parseHexColor(project.color) : null;
-            if (rgb) {
-              const [r, g, b] = rgb;
-              data.cell.styles.fillColor = [
-                Math.round(r + (255 - r) * 0.88),
-                Math.round(g + (255 - g) * 0.88),
-                Math.round(b + (255 - b) * 0.88),
-              ];
+            const colors = pId ? colorMap.get(pId) : null;
+            if (colors) {
+              data.cell.styles.fillColor = colors.rowTint;
             }
           }
         },
         didDrawCell: (data) => {
           if (data.section === 'body' && data.column.index === 0) {
             const pId = usedProjectIds[data.row.index] ?? null;
-            const project = pId ? projectMap.get(pId) : null;
-            const rgb = project?.color ? parseHexColor(project.color) : null;
-            if (rgb) {
-              const [r, g, b] = rgb;
+            const colors = pId ? colorMap.get(pId) : null;
+            if (colors) {
+              const [r, g, b] = colors.rgb;
               doc.setFillColor(r, g, b);
               doc.circle(data.cell.x + 3.5, data.cell.y + data.cell.height / 2, 1.5, 'F');
             }
@@ -264,31 +273,14 @@ export class PdfExportAdapter implements ExportPort {
           const row = groupedRows[data.row.index];
           if (!row) return;
 
+          const colors = row.projectId && row.projectId !== '__none__' ? colorMap.get(row.projectId) : null;
           if (row.type === 'header') {
             data.cell.styles.fontStyle = 'bold';
             data.cell.styles.fontSize = 10;
-            const project = row.projectId && row.projectId !== '__none__' ? projectMap.get(row.projectId) : null;
-            const rgb = project?.color ? parseHexColor(project.color) : null;
-            if (rgb) {
-              const [r, g, b] = rgb;
-              data.cell.styles.fillColor = [
-                Math.round(r + (255 - r) * 0.82),
-                Math.round(g + (255 - g) * 0.82),
-                Math.round(b + (255 - b) * 0.82),
-              ];
-            } else {
-              data.cell.styles.fillColor = [235, 235, 235];
-            }
+            data.cell.styles.fillColor = colors ? colors.headerTint : [235, 235, 235];
           } else if (row.type === 'entry') {
-            const project = row.projectId && row.projectId !== '__none__' ? projectMap.get(row.projectId) : null;
-            const rgb = project?.color ? parseHexColor(project.color) : null;
-            if (rgb) {
-              const [r, g, b] = rgb;
-              data.cell.styles.fillColor = [
-                Math.round(r + (255 - r) * 0.93),
-                Math.round(g + (255 - g) * 0.93),
-                Math.round(b + (255 - b) * 0.93),
-              ];
+            if (colors) {
+              data.cell.styles.fillColor = colors.entryTint;
             }
           }
         },
@@ -296,10 +288,9 @@ export class PdfExportAdapter implements ExportPort {
           if (data.section !== 'body' || data.column.index !== 0) return;
           const row = groupedRows[data.row.index];
           if (row?.type === 'header') {
-            const project = row.projectId && row.projectId !== '__none__' ? projectMap.get(row.projectId) : null;
-            const rgb = project?.color ? parseHexColor(project.color) : null;
-            if (rgb) {
-              const [r, g, b] = rgb;
+            const colors = row.projectId && row.projectId !== '__none__' ? colorMap.get(row.projectId) : null;
+            if (colors) {
+              const [r, g, b] = colors.rgb;
               doc.setFillColor(r, g, b);
               doc.circle(data.cell.x + 3.5, data.cell.y + data.cell.height / 2, 1.5, 'F');
             }
