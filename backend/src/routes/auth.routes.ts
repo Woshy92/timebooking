@@ -4,9 +4,24 @@ import { createOAuth2Client, SCOPES } from '../config/oauth.config.js';
 
 const router = Router();
 
-router.get('/url', (req, res) => {
+// Server-side OAuth state store — avoids reliance on session cookies which
+// break when the dev proxy (port 4200) and direct backend (port 3000) set
+// cookies in different first-party contexts.
+const pendingStates = new Map<string, number>();
+
+function cleanupStates() {
+  const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+  for (const [key, createdAt] of pendingStates) {
+    if (createdAt < fiveMinAgo) pendingStates.delete(key);
+  }
+}
+
+// Browser navigates here directly so the redirect to Google happens
+// server-side (no XHR, no cross-origin cookie issues).
+router.get('/start', (_req, res) => {
+  cleanupStates();
   const state = crypto.randomBytes(16).toString('hex');
-  req.session.oauthState = state;
+  pendingStates.set(state, Date.now());
   const oauth2Client = createOAuth2Client();
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
@@ -14,7 +29,7 @@ router.get('/url', (req, res) => {
     prompt: 'consent',
     state,
   });
-  res.json({ url });
+  res.redirect(url);
 });
 
 router.get('/callback', async (req, res) => {
@@ -26,11 +41,11 @@ router.get('/callback', async (req, res) => {
     return;
   }
 
-  if (!state || !req.session.oauthState || state !== req.session.oauthState) {
+  if (!state || !pendingStates.has(state)) {
     res.status(403).json({ error: 'Invalid state parameter' });
     return;
   }
-  delete req.session.oauthState;
+  pendingStates.delete(state);
 
   try {
     const oauth2Client = createOAuth2Client();

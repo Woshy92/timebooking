@@ -50,9 +50,11 @@ export class GoogleCalendarAdapter implements CalendarPort {
   }
 
   getAuthUrl(): Observable<string> {
-    return this.http.get<{ url: string }>(
-      `${this.baseUrl}/auth/url`,
-      { withCredentials: true }
-    ).pipe(map(r => r.url));
+    // Return the /auth/start URL directly — the browser must navigate there
+    // (not XHR) so the session cookie is set in a first-party context.
+    return new Observable(observer => {
+      observer.next(`${this.baseUrl}/auth/start`);
+      observer.complete();
+    });
   }
 }

@@ -287,14 +287,7 @@ export class App {
     if (this.calendarStore.authenticated()) return;
     if (this.backendUnavailable()) return;
     this.calendarStore.getAuthUrl((url) => {
-      try {
-        const parsed = new URL(url);
-        if (parsed.protocol === 'https:' && parsed.hostname === 'accounts.google.com') {
-          window.location.href = url;
-        }
-      } catch {
-        console.error('Invalid auth URL received from backend');
-      }
+      window.location.href = url;
     });
   }
 }
