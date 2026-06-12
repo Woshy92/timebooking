@@ -10,7 +10,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-OPEN_BROWSER=false
+OPEN_BROWSER=true
 MODE=""
 for arg in "$@"; do
   case "$arg" in
