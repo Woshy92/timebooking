@@ -112,15 +112,15 @@ test('a focused entry block can be deleted with the keyboard and undone', async 
   // ── Create an entry via the "Neu" button ──────────────────────────────
   await page.getByRole('button', { name: 'Neu', exact: true }).click();
 
-  const form = page.locator('app-time-entry-form form');
-  await expect(form).toBeVisible();
+  const dialog = page.getByRole('dialog', { name: 'Neuer Zeiteintrag' });
+  await expect(dialog).toBeVisible();
 
-  await form.getByPlaceholder('Beschreibung der Tätigkeit').fill(ENTRY_TITLE);
-  await form.locator('input[formControlName="date"]').fill(midWeekDateStr());
-  await form.locator('input[formControlName="startTime"]').fill('09:00');
-  await form.locator('input[formControlName="endTime"]').fill('10:00');
+  await dialog.getByLabel('Beschreibung', { exact: true }).fill(ENTRY_TITLE);
+  await dialog.getByLabel('Datum').fill(midWeekDateStr());
+  await dialog.getByLabel('Von').fill('09:00');
+  await dialog.getByLabel('Bis').fill('10:00');
 
-  await form.getByRole('button', { name: 'Erstellen' }).click();
+  await dialog.getByRole('button', { name: 'Erstellen' }).click();
 
   // The entry block renders as a focusable role="button" carrying the title in
   // its accessible name (Titel · Projekt · Zeitraum).

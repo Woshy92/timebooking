@@ -112,16 +112,15 @@ test('deleting an entry from the modal can be undone', async ({ page }) => {
   // ── Create an entry via the "Neu" button ──────────────────────────────
   await page.getByRole('button', { name: 'Neu', exact: true }).click();
 
-  // The modal (app-modal) is not an ARIA dialog; scope to its <form> instead.
-  const form = page.locator('app-time-entry-form form');
-  await expect(form).toBeVisible();
+  const dialog = page.getByRole('dialog', { name: 'Neuer Zeiteintrag' });
+  await expect(dialog).toBeVisible();
 
-  await form.getByPlaceholder('Beschreibung der Tätigkeit').fill(ENTRY_TITLE);
-  await form.locator('input[formControlName="date"]').fill(midWeekDateStr());
-  await form.locator('input[formControlName="startTime"]').fill('09:00');
-  await form.locator('input[formControlName="endTime"]').fill('10:00');
+  await dialog.getByLabel('Beschreibung', { exact: true }).fill(ENTRY_TITLE);
+  await dialog.getByLabel('Datum').fill(midWeekDateStr());
+  await dialog.getByLabel('Von').fill('09:00');
+  await dialog.getByLabel('Bis').fill('10:00');
 
-  await form.getByRole('button', { name: 'Erstellen' }).click();
+  await dialog.getByRole('button', { name: 'Erstellen' }).click();
 
   // The entry block renders in the calendar grid with its title.
   const entryBlock = page.getByText(ENTRY_TITLE, { exact: true });
@@ -129,11 +128,11 @@ test('deleting an entry from the modal can be undone', async ({ page }) => {
 
   // ── Open the entry modal (double-click) and delete ────────────────────
   await entryBlock.dblclick();
-  const editForm = page.locator('app-time-entry-form form');
-  await expect(editForm).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Zeiteintrag bearbeiten' })).toBeVisible();
+  const editDialog = page.getByRole('dialog', { name: 'Zeiteintrag bearbeiten' });
+  await expect(editDialog).toBeVisible();
+  await expect(editDialog.getByRole('heading', { name: 'Zeiteintrag bearbeiten' })).toBeVisible();
 
-  await editForm.getByRole('button', { name: 'Löschen' }).click();
+  await editDialog.getByRole('button', { name: 'Löschen' }).click();
 
   // Entry is gone and the undo toast appears.
   await expect(page.getByText(ENTRY_TITLE, { exact: true })).toHaveCount(0);

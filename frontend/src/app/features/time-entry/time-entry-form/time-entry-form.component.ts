@@ -28,6 +28,8 @@ function parseAttendee(raw: string): AttendeeInfo {
 
 const MAX_VISIBLE_ATTENDEES = 3;
 
+let nextFormInstanceId = 0;
+
 @Component({
   selector: 'app-time-entry-form',
   standalone: true,
@@ -49,8 +51,9 @@ const MAX_VISIBLE_ATTENDEES = 3;
       }
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Beschreibung</label>
+        <label [for]="fieldId('title')" class="block text-sm font-medium text-gray-700 mb-1">Beschreibung</label>
         <input
+          [id]="fieldId('title')"
           formControlName="title"
           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           placeholder="Beschreibung der Tätigkeit"
@@ -59,16 +62,18 @@ const MAX_VISIBLE_ATTENDEES = 3;
 
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Datum</label>
+          <label [for]="fieldId('date')" class="block text-sm font-medium text-gray-700 mb-1">Datum</label>
           <input
+            [id]="fieldId('date')"
             formControlName="date"
             type="date"
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           />
         </div>
         <div class="relative">
-          <label class="block text-sm font-medium text-gray-700 mb-1">Projekt</label>
+          <label [for]="fieldId('project')" class="block text-sm font-medium text-gray-700 mb-1">Projekt</label>
           <button
+            [id]="fieldId('project')"
             type="button"
             (click)="projectDropdownOpen.set(!projectDropdownOpen())"
             class="w-full flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors text-left"
@@ -110,16 +115,18 @@ const MAX_VISIBLE_ATTENDEES = 3;
 
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Von</label>
+          <label [for]="fieldId('start-time')" class="block text-sm font-medium text-gray-700 mb-1">Von</label>
           <input
+            [id]="fieldId('start-time')"
             formControlName="startTime"
             type="time"
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Bis</label>
+          <label [for]="fieldId('end-time')" class="block text-sm font-medium text-gray-700 mb-1">Bis</label>
           <input
+            [id]="fieldId('end-time')"
             formControlName="endTime"
             type="time"
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
@@ -131,8 +138,9 @@ const MAX_VISIBLE_ATTENDEES = 3;
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Notizen</label>
+        <label [for]="fieldId('notes')" class="block text-sm font-medium text-gray-700 mb-1">Notizen</label>
         <textarea
+          [id]="fieldId('notes')"
           formControlName="notes"
           rows="2"
           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors resize-none"
@@ -220,6 +228,12 @@ export class TimeEntryFormComponent {
   protected readonly projectStore = inject(ProjectStore);
   protected readonly getDisplayName = getProjectDisplayName;
   private readonly fb = inject(FormBuilder);
+
+  /** Unique per-instance prefix so label/input ids stay unique if the form is instantiated multiple times. */
+  private readonly instanceId = `time-entry-form-${nextFormInstanceId++}`;
+  protected fieldId(name: string): string {
+    return `${this.instanceId}-${name}`;
+  }
 
   protected readonly descriptionExpanded = signal(false);
 

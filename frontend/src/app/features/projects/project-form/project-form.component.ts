@@ -4,6 +4,8 @@ import { ColorPickerComponent, PRESET_COLORS } from '../../../shared/components/
 import { Project, CreateProjectDTO } from '../../../domain/models/project.model';
 import { ProjectStore } from '../../../state/project.store';
 
+let nextFormInstanceId = 0;
+
 @Component({
   selector: 'app-project-form',
   standalone: true,
@@ -11,8 +13,9 @@ import { ProjectStore } from '../../../state/project.store';
   template: `
     <form [formGroup]="form" (ngSubmit)="onSubmit()" class="space-y-4">
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Projektname</label>
+        <label [for]="fieldId('name')" class="block text-sm font-medium text-gray-700 mb-1">Projektname</label>
         <input
+          [id]="fieldId('name')"
           formControlName="name"
           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           placeholder="z.B. Kunde A – Beratung"
@@ -20,8 +23,9 @@ import { ProjectStore } from '../../../state/project.store';
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Satz</label>
+        <label [for]="fieldId('rate')" class="block text-sm font-medium text-gray-700 mb-1">Satz</label>
         <input
+          [id]="fieldId('rate')"
           formControlName="rate"
           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           placeholder="z.B. Standard, Premium, Intern"
@@ -29,8 +33,9 @@ import { ProjectStore } from '../../../state/project.store';
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Kurzbezeichnung</label>
+        <label [for]="fieldId('short-name')" class="block text-sm font-medium text-gray-700 mb-1">Kurzbezeichnung</label>
         <input
+          [id]="fieldId('short-name')"
           formControlName="shortName"
           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           placeholder="Optional – wird als Anzeigename verwendet"
@@ -38,8 +43,9 @@ import { ProjectStore } from '../../../state/project.store';
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Beschreibung</label>
+        <label [for]="fieldId('description')" class="block text-sm font-medium text-gray-700 mb-1">Beschreibung</label>
         <input
+          [id]="fieldId('description')"
           formControlName="description"
           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           placeholder="Optional"
@@ -79,6 +85,12 @@ export class ProjectFormComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly projectStore = inject(ProjectStore);
   form!: FormGroup;
+
+  /** Unique per-instance prefix so label/input ids stay unique if the form is instantiated multiple times. */
+  private readonly instanceId = `project-form-${nextFormInstanceId++}`;
+  protected fieldId(name: string): string {
+    return `${this.instanceId}-${name}`;
+  }
 
   ngOnInit() {
     const p = this.project();
