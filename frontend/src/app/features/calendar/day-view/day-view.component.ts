@@ -33,7 +33,7 @@ const MIN_BLOCK_HEIGHT = 34;
     <div class="flex flex-col h-full bg-white">
       <!-- Day header -->
       <div class="flex items-center gap-4 px-6 py-3 border-b border-gray-200/80 bg-white sticky top-0 z-20 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-        <button (click)="ui.navigateDay('prev')" class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
+        <button (click)="ui.navigateDay('prev')" aria-label="Vorheriger Tag" class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
           </svg>
@@ -55,7 +55,7 @@ const MIN_BLOCK_HEIGHT = 34;
           (click)="toggleVacation()">
           {{ isVacation() ? 'Urlaub entfernen' : 'Urlaub' }}
         </button>
-        <button (click)="ui.navigateDay('next')" class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
+        <button (click)="ui.navigateDay('next')" aria-label="Nächster Tag" class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
           </svg>
@@ -131,7 +131,7 @@ const MIN_BLOCK_HEIGHT = 34;
                     <div class="text-amber-400 text-xs tabular-nums">{{ formatTime(gap.start) }}–{{ formatTime(gap.end) }}</div>
                   </div>
                   <button
-                    class="opacity-0 group-hover:opacity-100 px-2 py-0.5 rounded text-[11px] font-medium
+                    class="opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 py-0.5 rounded text-[11px] font-medium
                            bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-gray-700 transition-all flex-shrink-0"
                     title="Als Pause markieren"
                     (click)="interaction.onGapPause($event, gap)"
@@ -165,8 +165,9 @@ const MIN_BLOCK_HEIGHT = 34;
                   <div class="text-gray-400 text-xs tabular-nums">{{ formatTime(event.start) }}–{{ formatTime(event.end) }} · Importieren</div>
                 </div>
                 <button
-                  class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-all flex-shrink-0"
+                  class="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-all flex-shrink-0"
                   title="Ausblenden"
+                  aria-label="Termin ausblenden"
                   (click)="interaction.dismissGoogleEvent($event, event.id)"
                 >
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -181,8 +182,13 @@ const MIN_BLOCK_HEIGHT = 34;
             @if (entry.pause) {
               <!-- Pause block -->
               <div
-                class="absolute rounded-lg cursor-pointer z-[5] border border-dashed border-gray-300
-                       hover:border-gray-400 transition-all group"
+                tabindex="0"
+                role="button"
+                [attr.aria-label]="interaction.getEntryLabel(entry)"
+                [title]="interaction.getEntryLabel(entry)"
+                class="absolute rounded-lg cursor-pointer z-[5] outline-none border border-dashed border-gray-300
+                       hover:border-gray-400 transition-all group
+                       focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
                 style="background: repeating-linear-gradient(-45deg, transparent, transparent 5px, rgba(156,163,175,0.08) 5px, rgba(156,163,175,0.08) 10px)"
                 [style.top.px]="getTopPosition(interaction.getEffectiveStart(entry))"
                 [style.height.px]="getBlockHeight(interaction.getEffectiveStart(entry), interaction.getEffectiveEnd(entry))"
@@ -196,6 +202,7 @@ const MIN_BLOCK_HEIGHT = 34;
                 (mousedown)="onEntryMouseDown($event, entry)"
                 (click)="interaction.onEntryClick($event, entry)"
                 (dblclick)="interaction.onEntryDblClick($event, entry)"
+                (keydown)="interaction.onEntryKeydown($event, entry)"
               >
                 <div class="px-3 py-2 h-full flex flex-col overflow-hidden">
                   <div class="flex items-center gap-1.5 text-gray-400">
@@ -204,8 +211,9 @@ const MIN_BLOCK_HEIGHT = 34;
                     </svg>
                     <div class="text-sm font-medium truncate flex-1 min-w-0">Pause</div>
                     <button
-                      class="opacity-0 group-hover:opacity-100 p-0.5 -mr-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
+                      class="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-0.5 -mr-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
                       title="Löschen"
+                      aria-label="Eintrag löschen"
                       (click)="interaction.deleteSingleEntry($event, entry)"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -219,14 +227,14 @@ const MIN_BLOCK_HEIGHT = 34;
                 </div>
                 <!-- Top resize handle -->
                 <div
-                  class="absolute top-0 left-0 right-0 h-3 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                  class="absolute top-0 left-0 right-0 h-3 cursor-ns-resize opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                   (mousedown)="onResizeTopStart($event, entry)"
                 >
                   <div class="absolute top-1 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full bg-gray-400" style="opacity: 0.4"></div>
                 </div>
                 <!-- Bottom resize handle -->
                 <div
-                  class="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                  class="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                   (mousedown)="onResizeStart($event, entry)"
                 >
                   <div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full bg-gray-400" style="opacity: 0.4"></div>
@@ -235,8 +243,13 @@ const MIN_BLOCK_HEIGHT = 34;
             } @else {
               <!-- Regular entry block -->
               <div
-                class="absolute rounded-lg cursor-pointer z-[6]
-                       shadow-sm hover:shadow-lg transition-all group"
+                tabindex="0"
+                role="button"
+                [attr.aria-label]="interaction.getEntryLabel(entry)"
+                [title]="interaction.getEntryLabel(entry)"
+                class="absolute rounded-lg cursor-pointer z-[6] outline-none
+                       shadow-sm hover:shadow-lg transition-all group
+                       focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
                 [style.top.px]="getTopPosition(interaction.getEffectiveStart(entry))"
                 [style.height.px]="getBlockHeight(interaction.getEffectiveStart(entry), interaction.getEffectiveEnd(entry))"
                 [style.min-height.px]="34"
@@ -252,6 +265,7 @@ const MIN_BLOCK_HEIGHT = 34;
                 (mousedown)="onEntryMouseDown($event, entry)"
                 (click)="interaction.onEntryClick($event, entry)"
                 (dblclick)="interaction.onEntryDblClick($event, entry)"
+                (keydown)="interaction.onEntryKeydown($event, entry)"
               >
                 <div class="px-3 py-2 h-full flex flex-col overflow-hidden">
                   <div class="flex items-center gap-1.5">
@@ -265,8 +279,9 @@ const MIN_BLOCK_HEIGHT = 34;
                       </svg>
                     }
                     <button
-                      class="opacity-0 group-hover:opacity-100 p-0.5 -mr-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
+                      class="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-0.5 -mr-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
                       title="Löschen"
+                      aria-label="Eintrag löschen"
                       (click)="interaction.deleteSingleEntry($event, entry)"
                     >
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -283,14 +298,14 @@ const MIN_BLOCK_HEIGHT = 34;
                 </div>
                 <!-- Top resize handle -->
                 <div
-                  class="absolute top-0 left-0 right-0 h-3 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                  class="absolute top-0 left-0 right-0 h-3 cursor-ns-resize opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                   (mousedown)="onResizeTopStart($event, entry)"
                 >
                   <div class="absolute top-1 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full" [style.background-color]="interaction.getEntryColor(entry)" style="opacity: 0.4"></div>
                 </div>
                 <!-- Bottom resize handle -->
                 <div
-                  class="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                  class="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                   (mousedown)="onResizeStart($event, entry)"
                 >
                   <div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-full" [style.background-color]="interaction.getEntryColor(entry)" style="opacity: 0.4"></div>

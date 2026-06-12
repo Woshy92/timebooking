@@ -17,6 +17,7 @@ import { Component, input, output } from '@angular/core';
           <h2 class="text-lg font-semibold text-gray-900">{{ title() }}</h2>
           <button
             (click)="closed.emit()"
+            aria-label="Schließen"
             class="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

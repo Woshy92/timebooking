@@ -11,6 +11,7 @@ import { getISOWeek } from 'date-fns';
     <div class="flex items-center gap-2">
       <button
         (click)="ui.navigateWeek('prev')"
+        aria-label="Vorherige Woche"
         class="p-1.5 rounded-md hover:bg-gray-800 hover:text-white transition-colors"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -27,6 +28,7 @@ import { getISOWeek } from 'date-fns';
 
       <button
         (click)="ui.navigateWeek('next')"
+        aria-label="Nächste Woche"
         class="p-1.5 rounded-md hover:bg-gray-800 hover:text-white transition-colors"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

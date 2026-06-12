@@ -204,6 +204,41 @@ export class CalendarInteractionService {
     this.ui.selectEntry(entry.id);
   }
 
+  /**
+   * Keyboard activation for a focused entry block.
+   * Enter/Space opens the project popover (same action as a click), Delete/Backspace
+   * deletes the entry via the undoable single-delete path.
+   */
+  onEntryKeydown(event: KeyboardEvent, entry: TimeEntry) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.openEntryPopover(event, entry);
+    } else if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault();
+      this.deleteSingleEntry(event, entry);
+    }
+  }
+
+  /** Opens the project popover for a single entry, anchored to the focused element. */
+  openEntryPopover(event: Event, entry: TimeEntry) {
+    if (this.dragging) return;
+    this.dismissEmptyDraft();
+    const el = event.currentTarget as HTMLElement | null;
+    const rect = el?.getBoundingClientRect();
+    const x = Math.min(rect ? rect.left : window.innerWidth / 2, window.innerWidth - 220);
+    const y = Math.min(rect ? rect.bottom : window.innerHeight / 2, window.innerHeight - 300);
+    this.selectedEntryIds.set(new Set([entry.id]));
+    this.popover.set({ x, y });
+  }
+
+  /** Builds a descriptive label: "Titel · Projekt · 09:00–10:30" (for title/aria). */
+  getEntryLabel(entry: TimeEntry): string {
+    const title = entry.title || 'Ohne Beschreibung';
+    const project = this.getProject(entry);
+    const time = `${formatTime(this.getEffectiveStart(entry))}–${formatTime(this.getEffectiveEnd(entry))}`;
+    return project ? `${title} · ${getProjectDisplayName(project)} · ${time}` : `${title} · ${time}`;
+  }
+
   // ─── Google events ──────────────────────────────────
   onGoogleEventClick(event: MouseEvent, calEvent: CalendarEvent) {
     event.stopPropagation();
@@ -287,7 +322,7 @@ export class CalendarInteractionService {
     this.closePopover();
   }
 
-  deleteSingleEntry(event: MouseEvent, entry: TimeEntry) {
+  deleteSingleEntry(event: Event, entry: TimeEntry) {
     event.stopPropagation();
     this.undoStore.pushDelete([entry]);
     this.timeEntryStore.removeEntries([entry.id]);

@@ -39,6 +39,7 @@ const MIN_BLOCK_HEIGHT = 26;
             <span class="text-gray-400 font-medium mr-0.5">Von</span>
             <button (click)="uiStore.setViewStartHour(uiStore.viewStartHour() - 1)"
               class="p-0.5 rounded hover:bg-gray-200 hover:text-gray-600 transition-colors"
+              aria-label="Früherer Start"
               title="Früherer Start">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
@@ -47,6 +48,7 @@ const MIN_BLOCK_HEIGHT = 26;
             <span class="font-semibold text-gray-600 min-w-[32px] text-center">{{ uiStore.viewStartHour() < 10 ? '0' + uiStore.viewStartHour() : uiStore.viewStartHour() }}:00</span>
             <button (click)="uiStore.setViewStartHour(uiStore.viewStartHour() + 1)"
               class="p-0.5 rounded hover:bg-gray-200 hover:text-gray-600 transition-colors"
+              aria-label="Späterer Start"
               title="Späterer Start">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -57,6 +59,7 @@ const MIN_BLOCK_HEIGHT = 26;
             <span class="text-gray-400 font-medium mr-0.5">Bis</span>
             <button (click)="uiStore.setViewEndHour(uiStore.viewEndHour() - 1)"
               class="p-0.5 rounded hover:bg-gray-200 hover:text-gray-600 transition-colors"
+              aria-label="Früheres Ende"
               title="Früheres Ende">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
@@ -65,6 +68,7 @@ const MIN_BLOCK_HEIGHT = 26;
             <span class="font-semibold text-gray-600 min-w-[32px] text-center">{{ uiStore.viewEndHour() < 10 ? '0' + uiStore.viewEndHour() : uiStore.viewEndHour() }}:00</span>
             <button (click)="uiStore.setViewEndHour(uiStore.viewEndHour() + 1)"
               class="p-0.5 rounded hover:bg-gray-200 hover:text-gray-600 transition-colors"
+              aria-label="Späteres Ende"
               title="Späteres Ende">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -216,7 +220,7 @@ const MIN_BLOCK_HEIGHT = 26;
                       <div class="text-amber-400 text-[10px] tabular-nums flex-shrink overflow-hidden leading-tight">{{ formatTime(gap.start) }}–{{ formatTime(gap.end) }}</div>
                     </div>
                     <button
-                      class="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 rounded text-[10px] font-medium
+                      class="opacity-100 md:opacity-0 md:group-hover:opacity-100 px-1.5 py-0.5 rounded text-[10px] font-medium
                              bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-gray-700 transition-all flex-shrink-0"
                       title="Als Pause markieren"
                       (click)="interaction.onGapPause($event, gap)"
@@ -251,8 +255,9 @@ const MIN_BLOCK_HEIGHT = 26;
                     <div class="text-gray-400 text-[10px] tabular-nums flex-shrink overflow-hidden leading-tight">{{ formatTime(event.start) }}–{{ formatTime(event.end) }}</div>
                   </div>
                   <button
-                    class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-all flex-shrink-0"
+                    class="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-all flex-shrink-0"
                     title="Ausblenden"
+                    aria-label="Termin ausblenden"
                     (click)="interaction.dismissGoogleEvent($event, event.id)"
                   >
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -268,8 +273,13 @@ const MIN_BLOCK_HEIGHT = 26;
               @if (entry.pause) {
                 <!-- Pause block -->
                 <div
-                  class="absolute rounded-md cursor-pointer z-[5] border border-dashed border-gray-300
-                         hover:border-gray-400 transition-all group"
+                  tabindex="0"
+                  role="button"
+                  [attr.aria-label]="interaction.getEntryLabel(entry)"
+                  [title]="interaction.getEntryLabel(entry)"
+                  class="absolute rounded-md cursor-pointer z-[5] outline-none border border-dashed border-gray-300
+                         hover:border-gray-400 transition-all group
+                         focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
                   style="background: repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(156,163,175,0.08) 4px, rgba(156,163,175,0.08) 8px)"
                   [style.top.px]="getTopPosition(interaction.getEffectiveStart(entry))"
                   [style.height.px]="getBlockHeight(interaction.getEffectiveStart(entry), interaction.getEffectiveEnd(entry))"
@@ -283,6 +293,7 @@ const MIN_BLOCK_HEIGHT = 26;
                   (mousedown)="onEntryMouseDown($event, entry, dayIdx)"
                   (click)="interaction.onEntryClick($event, entry)"
                   (dblclick)="interaction.onEntryDblClick($event, entry)"
+                  (keydown)="interaction.onEntryKeydown($event, entry)"
                 >
                   <div class="px-2 py-1 h-full flex flex-col overflow-hidden">
                     <div class="flex items-center gap-1 flex-shrink-0 text-gray-400">
@@ -291,8 +302,9 @@ const MIN_BLOCK_HEIGHT = 26;
                       </svg>
                       <div class="text-[11px] font-medium truncate flex-1 min-w-0">Pause</div>
                       <button
-                        class="opacity-0 group-hover:opacity-100 p-0.5 -mr-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
+                        class="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-0.5 -mr-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
                         title="Löschen"
+                        aria-label="Eintrag löschen"
                         (click)="interaction.deleteSingleEntry($event, entry)"
                       >
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -306,7 +318,7 @@ const MIN_BLOCK_HEIGHT = 26;
                   </div>
                   <!-- Top resize handle -->
                   <div
-                    class="absolute top-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                    class="absolute top-0 left-0 right-0 h-2 cursor-ns-resize opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                     style="background: linear-gradient(rgba(156,163,175,0.3), transparent)"
                     (mousedown)="onResizeTopStart($event, entry)"
                   >
@@ -314,7 +326,7 @@ const MIN_BLOCK_HEIGHT = 26;
                   </div>
                   <!-- Bottom resize handle -->
                   <div
-                    class="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                    class="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                     style="background: linear-gradient(transparent, rgba(156,163,175,0.3))"
                     (mousedown)="onResizeStart($event, entry)"
                   >
@@ -324,8 +336,13 @@ const MIN_BLOCK_HEIGHT = 26;
               } @else {
                 <!-- Regular entry block -->
                 <div
-                  class="absolute rounded-md cursor-pointer z-[6]
-                         shadow-sm hover:shadow-lg transition-all group"
+                  tabindex="0"
+                  role="button"
+                  [attr.aria-label]="interaction.getEntryLabel(entry)"
+                  [title]="interaction.getEntryLabel(entry)"
+                  class="absolute rounded-md cursor-pointer z-[6] outline-none
+                         shadow-sm hover:shadow-lg transition-all group
+                         focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
                   [style.top.px]="getTopPosition(interaction.getEffectiveStart(entry))"
                   [style.height.px]="getBlockHeight(interaction.getEffectiveStart(entry), interaction.getEffectiveEnd(entry))"
                   [style.min-height.px]="26"
@@ -341,6 +358,7 @@ const MIN_BLOCK_HEIGHT = 26;
                   (mousedown)="onEntryMouseDown($event, entry, dayIdx)"
                   (click)="interaction.onEntryClick($event, entry)"
                   (dblclick)="interaction.onEntryDblClick($event, entry)"
+                  (keydown)="interaction.onEntryKeydown($event, entry)"
                 >
                   <div class="px-2 py-1 h-full flex flex-col overflow-hidden">
                     <div class="flex items-center gap-1 flex-shrink-0">
@@ -356,8 +374,9 @@ const MIN_BLOCK_HEIGHT = 26;
                         </svg>
                       }
                       <button
-                        class="opacity-0 group-hover:opacity-100 p-0.5 -mr-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
+                        class="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-0.5 -mr-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
                         title="Löschen"
+                        aria-label="Eintrag löschen"
                         (click)="interaction.deleteSingleEntry($event, entry)"
                       >
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -374,7 +393,7 @@ const MIN_BLOCK_HEIGHT = 26;
                   </div>
                   <!-- Top resize handle -->
                   <div
-                    class="absolute top-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                    class="absolute top-0 left-0 right-0 h-2 cursor-ns-resize opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                     [style.background]="'linear-gradient(' + interaction.getEntryColor(entry) + '30, transparent)'"
                     (mousedown)="onResizeTopStart($event, entry)"
                   >
@@ -382,7 +401,7 @@ const MIN_BLOCK_HEIGHT = 26;
                   </div>
                   <!-- Bottom resize handle -->
                   <div
-                    class="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                    class="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                     [style.background]="'linear-gradient(transparent, ' + interaction.getEntryColor(entry) + '30)'"
                     (mousedown)="onResizeStart($event, entry)"
                   >

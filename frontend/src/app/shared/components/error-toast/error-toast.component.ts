@@ -18,7 +18,7 @@ import { CalendarStore } from '../../../state/calendar.store';
             <div class="text-sm font-medium">Fehler</div>
             <div class="text-xs text-red-100 mt-0.5 break-words">{{ error }}</div>
           </div>
-          <button (click)="dismiss()" class="p-1 hover:bg-red-700 rounded transition-colors flex-shrink-0">
+          <button (click)="dismiss()" aria-label="Fehlermeldung schließen" class="p-1 hover:bg-red-700 rounded transition-colors flex-shrink-0">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
