@@ -1,18 +1,27 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { createOAuth2Client, SCOPES } from '../config/oauth.config.js';
+import { issueXsrfCookie } from '../middleware/csrf.middleware.js';
 
 const router = Router();
 
-// Server-side OAuth state store — avoids reliance on session cookies which
-// break when the dev proxy (port 4200) and direct backend (port 3000) set
-// cookies in different first-party contexts.
-const pendingStates = new Map<string, number>();
+// Server-side OAuth state store, bound to the session ID that initiated the
+// flow (login-CSRF protection: the callback only accepts a state from the
+// same browser session that started it).
+// NOTE: This in-memory Map does not survive a server restart and does not
+// scale beyond a single instance. Accepted trade-off for local single-user
+// operation — replace with a shared store (DB/Redis) before multi-instance
+// deployment.
+interface PendingState {
+  sid: string;
+  createdAt: number;
+}
+const pendingStates = new Map<string, PendingState>();
 
 function cleanupStates() {
   const fiveMinAgo = Date.now() - 5 * 60 * 1000;
-  for (const [key, createdAt] of pendingStates) {
-    if (createdAt < fiveMinAgo) pendingStates.delete(key);
+  for (const [key, entry] of pendingStates) {
+    if (entry.createdAt < fiveMinAgo) pendingStates.delete(key);
   }
 }
 
@@ -28,10 +37,10 @@ function redirectWithAuthError(res: import('express').Response, code: string): v
 
 // Browser navigates here directly so the redirect to Google happens
 // server-side (no XHR, no cross-origin cookie issues).
-router.get('/start', (_req, res) => {
+router.get('/start', (req, res) => {
   cleanupStates();
   const state = crypto.randomBytes(16).toString('hex');
-  pendingStates.set(state, Date.now());
+  pendingStates.set(state, { sid: req.sessionID, createdAt: Date.now() });
   const oauth2Client = createOAuth2Client();
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
@@ -39,7 +48,13 @@ router.get('/start', (_req, res) => {
     prompt: 'consent',
     state,
   });
-  res.redirect(url);
+  // Touch and persist the session: with saveUninitialized=false the session
+  // cookie is only sent if the session was modified. The callback must
+  // arrive with the SAME session ID, otherwise the state check fails.
+  req.session.oauthState = state;
+  req.session.save(() => {
+    res.redirect(url);
+  });
 });
 
 router.get('/callback', async (req, res) => {
@@ -58,7 +73,10 @@ router.get('/callback', async (req, res) => {
     return;
   }
 
-  if (!state || !pendingStates.has(state)) {
+  const entry = state ? pendingStates.get(state) : undefined;
+  if (!entry || entry.sid !== req.sessionID) {
+    // Unknown state OR a state issued to a different browser session
+    // (login CSRF attempt) — reject either way.
     redirectWithAuthError(res, 'invalid_state');
     return;
   }
@@ -68,7 +86,11 @@ router.get('/callback', async (req, res) => {
     const oauth2Client = createOAuth2Client();
     const { tokens } = await oauth2Client.getToken(code);
     req.session.tokens = tokens;
+    delete req.session.oauthState;
     req.session.save(() => {
+      // Rotate the CSRF token on privilege escalation (login) so a token
+      // obtained pre-login cannot be fixated.
+      issueXsrfCookie(res);
       res.redirect(frontendOrigin());
     });
   } catch (err) {
@@ -87,6 +109,17 @@ router.post('/logout', (req, res) => {
       res.status(500).json({ error: 'Failed to logout' });
       return;
     }
+    // Explicitly remove the session cookie in the browser (destroy only
+    // deletes the server-side session). Options must match the ones used
+    // when the cookie was set, otherwise browsers won't clear it.
+    res.clearCookie('connect.sid', {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+    // Rotate the CSRF token on logout (privilege change).
+    issueXsrfCookie(res);
     res.json({ success: true });
   });
 });

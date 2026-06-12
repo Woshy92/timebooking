@@ -15,6 +15,14 @@ export async function getDb(): Promise<PGlite> {
   return db;
 }
 
+/** Closes the PGlite instance (flushes WAL etc.). Safe to call when never opened. */
+export async function closeDatabase(): Promise<void> {
+  if (!db) return;
+  const instance = db;
+  db = null;
+  await instance.close();
+}
+
 export async function initializeDatabase(): Promise<void> {
   const client = await getDb();
 
