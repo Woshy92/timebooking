@@ -3,6 +3,7 @@ import { PDF_EXPORT_PORT, CSV_EXPORT_PORT, ExportOptions } from '../domain/ports
 import { TimeEntryStore } from '../state/time-entry.store';
 import { ProjectStore } from '../state/project.store';
 import { mergeConsecutiveEntries } from '../shared/utils/merge-entries';
+import { format } from 'date-fns';
 
 @Injectable({ providedIn: 'root' })
 export class ExportService {
@@ -11,7 +12,7 @@ export class ExportService {
   private readonly timeEntryStore = inject(TimeEntryStore);
   private readonly projectStore = inject(ProjectStore);
 
-  export(format: 'pdf' | 'csv', dateRange: { from: Date; to: Date }, includeSummary = false, mergeConsecutive = false): void {
+  export(fmt: 'pdf' | 'csv', dateRange: { from: Date; to: Date }, includeSummary = false, mergeConsecutive = false): void {
     let entries = this.timeEntryStore.entries().filter(e => {
       const start = new Date(e.start);
       return start >= dateRange.from && start <= dateRange.to;
@@ -29,15 +30,18 @@ export class ExportService {
       mergeConsecutive,
     };
 
-    const port = format === 'pdf' ? this.pdfPort : this.csvPort;
-    const extension = format === 'pdf' ? 'pdf' : 'csv';
-    const mimeType = format === 'pdf' ? 'application/pdf' : 'text/csv';
+    const port = fmt === 'pdf' ? this.pdfPort : this.csvPort;
+    const extension = fmt === 'pdf' ? 'pdf' : 'csv';
+
+    const from = format(dateRange.from, 'yyyy-MM-dd');
+    const to = format(dateRange.to, 'yyyy-MM-dd');
+    const filename = `Zeiterfassung_${from}_${to}.${extension}`;
 
     port.export(options).subscribe((blob) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `zeiterfassung.${extension}`;
+      a.download = filename;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
     });
