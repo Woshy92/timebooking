@@ -21,12 +21,18 @@ export class CsvExportAdapter implements ExportPort {
     const projectMap = new Map(options.projects.map(p => [p.id, p]));
     const sortedEntries = [...options.entries].sort((a, b) => a.start.getTime() - b.start.getTime());
 
+    // Entscheidung: Pausen-Einträge (pause=true) erscheinen in der Detailtabelle klar als
+    // 'Pause' markiert (Transparenz für den Stundenzettel), zählen aber – konsistent zur
+    // App-Ansicht (Tages-/Wochensumme filtert mit !e.pause) – NICHT in Summen oder die
+    // Zusammenfassung. Daher werden alle Aggregationen auf workEntries (ohne Pausen) berechnet.
+    const workEntries = sortedEntries.filter(e => !e.pause);
+
     const detailRows = sortedEntries.map(entry => ({
       Datum: format(entry.start, 'dd.MM.yyyy'),
       Von: format(entry.start, 'HH:mm'),
       Bis: format(entry.end, 'HH:mm'),
       'Dauer (h)': ((entry.end.getTime() - entry.start.getTime()) / 3600000).toFixed(2),
-      Projekt: entry.projectId ? (projectMap.get(entry.projectId) ? getProjectDisplayName(projectMap.get(entry.projectId)!) : '') : '',
+      Projekt: entry.pause ? 'Pause' : (entry.projectId ? (projectMap.get(entry.projectId) ? getProjectDisplayName(projectMap.get(entry.projectId)!) : '') : ''),
       Beschreibung: entry.title,
       Notizen: entry.notes ?? '',
     }));
@@ -37,7 +43,7 @@ export class CsvExportAdapter implements ExportPort {
       const days = eachDayOfInterval({ start: options.dateRange.from, end: options.dateRange.to });
       const dayHeaders = days.map(d => format(d, 'EEE dd.MM.', { locale: de }));
 
-      const usedProjectIds = [...new Set(sortedEntries.map(e => e.projectId).filter(Boolean))] as string[];
+      const usedProjectIds = [...new Set(workEntries.map(e => e.projectId).filter(Boolean))] as string[];
       const summaryRows: Record<string, string>[] = [];
       const dayTotals = new Array(days.length).fill(0);
       let grandTotal = 0;
@@ -47,7 +53,7 @@ export class CsvExportAdapter implements ExportPort {
         const row: Record<string, string> = { Projekt: project ? getProjectDisplayName(project) : '' };
         let projectTotal = 0;
         days.forEach((day, i) => {
-          const hours = sortedEntries
+          const hours = workEntries
             .filter(e => e.projectId === projectId && isSameDay(new Date(e.start), day))
             .reduce((sum, e) => sum + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000, 0);
           row[dayHeaders[i]] = hours > 0 ? formatHoursAsHHMM(hours) : '';
@@ -59,9 +65,9 @@ export class CsvExportAdapter implements ExportPort {
         summaryRows.push(row);
       }
 
-      // Entries without project
+      // Entries without project (Pausen sind hier bereits ausgeschlossen, da workEntries genutzt wird)
       const noProjectHours = days.map((day, i) => {
-        const hours = sortedEntries
+        const hours = workEntries
           .filter(e => !e.projectId && isSameDay(new Date(e.start), day))
           .reduce((sum, e) => sum + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000, 0);
         dayTotals[i] += hours;

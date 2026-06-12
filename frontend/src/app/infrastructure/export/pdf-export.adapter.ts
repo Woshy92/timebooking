@@ -45,16 +45,22 @@ export class PdfExportAdapter implements ExportPort {
     const sortedEntries = options.entries
       .sort((a, b) => a.start.getTime() - b.start.getTime());
 
+    // Entscheidung: Pausen-Einträge (pause=true) erscheinen in der Detailtabelle klar als
+    // 'Pause' markiert (Transparenz für den Stundenzettel), zählen aber – konsistent zur
+    // App-Ansicht (Tages-/Wochensumme filtert mit !e.pause) – NICHT in Summen, die
+    // Zusammenfassung oder die Projektgruppierung. Aggregationen nutzen workEntries.
+    const workEntries = sortedEntries.filter(e => !e.pause);
+
     const rows = sortedEntries.map(entry => [
       format(entry.start, 'dd.MM.yyyy'),
       format(entry.start, 'HH:mm'),
       format(entry.end, 'HH:mm'),
       formatHoursAsHHMM((entry.end.getTime() - entry.start.getTime()) / 3600000),
-      entry.projectId ? (projectMap.get(entry.projectId) ? getProjectDisplayName(projectMap.get(entry.projectId)!) : '') : '',
+      entry.pause ? 'Pause' : (entry.projectId ? (projectMap.get(entry.projectId) ? getProjectDisplayName(projectMap.get(entry.projectId)!) : '') : ''),
       entry.title,
     ]);
 
-    const totalHours = options.entries.reduce(
+    const totalHours = workEntries.reduce(
       (sum, e) => sum + (e.end.getTime() - e.start.getTime()) / 3600000, 0
     );
 
@@ -70,7 +76,7 @@ export class PdfExportAdapter implements ExportPort {
       didParseCell: (data) => {
         if (data.section === 'body') {
           const entry = sortedEntries[data.row.index];
-          if (entry?.projectId) {
+          if (entry && !entry.pause && entry.projectId) {
             const project = projectMap.get(entry.projectId);
             const rgb = project?.color ? parseHexColor(project.color) : null;
             if (rgb) {
@@ -87,7 +93,7 @@ export class PdfExportAdapter implements ExportPort {
       didDrawCell: (data) => {
         if (data.section === 'body' && data.column.index === 4) {
           const entry = sortedEntries[data.row.index];
-          if (entry?.projectId) {
+          if (entry && !entry.pause && entry.projectId) {
             const project = projectMap.get(entry.projectId);
             const rgb = project?.color ? parseHexColor(project.color) : null;
             if (rgb) {
@@ -113,7 +119,7 @@ export class PdfExportAdapter implements ExportPort {
       );
 
       const days = eachDayOfInterval({ start: options.dateRange.from, end: options.dateRange.to });
-      const usedProjectIds = [...new Set(sortedEntries.map(e => e.projectId).filter(Boolean))] as string[];
+      const usedProjectIds = [...new Set(workEntries.map(e => e.projectId).filter(Boolean))] as string[];
 
       const summaryHead = ['Projekt', ...days.map(d => format(d, 'EEE dd.MM.', { locale: de })), 'Gesamt'];
       const summaryBody: (string | number)[][] = [];
@@ -125,7 +131,7 @@ export class PdfExportAdapter implements ExportPort {
         const row: (string | number)[] = [project ? getProjectDisplayName(project) : ''];
         let projectTotal = 0;
         days.forEach((day, i) => {
-          const hours = sortedEntries
+          const hours = workEntries
             .filter(e => e.projectId === projectId && isSameDay(new Date(e.start), day))
             .reduce((sum, e) => sum + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000, 0);
           row.push(hours > 0 ? formatHoursAsHHMM(hours) : '');
@@ -137,9 +143,9 @@ export class PdfExportAdapter implements ExportPort {
         summaryBody.push(row);
       }
 
-      // Entries without project
+      // Entries without project (Pausen sind hier bereits ausgeschlossen, da workEntries genutzt wird)
       const noProjectHours = days.map((day, i) => {
-        const hours = sortedEntries
+        const hours = workEntries
           .filter(e => !e.projectId && isSameDay(new Date(e.start), day))
           .reduce((sum, e) => sum + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000, 0);
         dayTotals[i] += hours;
@@ -208,13 +214,13 @@ export class PdfExportAdapter implements ExportPort {
       const groupedRows: { type: RowType; projectId?: string; data: string[] }[] = [];
 
       const allProjectIds = [...usedProjectIds];
-      const hasNoProject = sortedEntries.some(e => !e.projectId);
+      const hasNoProject = workEntries.some(e => !e.projectId);
       if (hasNoProject) allProjectIds.push('__none__');
 
       for (const pid of allProjectIds) {
         const project = pid === '__none__' ? null : projectMap.get(pid);
         const projectName = project ? getProjectDisplayName(project) : 'Ohne Projekt';
-        const projectEntries = sortedEntries.filter(e =>
+        const projectEntries = workEntries.filter(e =>
           pid === '__none__' ? !e.projectId : e.projectId === pid
         );
         if (projectEntries.length === 0) continue;
