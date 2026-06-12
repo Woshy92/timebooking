@@ -29,14 +29,12 @@ function readPersistedDefaultProjectId(): string | null {
     : null;
 }
 
-const initialState: UiState = {
+const initialState: Omit<UiState, 'activeDate' | 'defaultProjectId'> = {
   activeView: 'week',
-  activeDate: new Date(),
   selectedEntryId: null,
   isEntryModalOpen: false,
   isProjectPanelOpen: false,
   isExportPanelOpen: false,
-  defaultProjectId: null,
   highlightGaps: false,
   viewStartHour: 7,
   viewEndHour: 19,
