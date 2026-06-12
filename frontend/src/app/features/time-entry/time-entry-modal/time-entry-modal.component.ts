@@ -1,6 +1,7 @@
 import { Component, inject, computed } from '@angular/core';
 import { UiStore } from '../../../state/ui.store';
 import { TimeEntryStore } from '../../../state/time-entry.store';
+import { UndoStore } from '../../../state/undo.store';
 import { ModalComponent } from '../../../shared/components/modal/modal.component';
 import { TimeEntryFormComponent } from '../time-entry-form/time-entry-form.component';
 import { CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../../../domain/models/time-entry.model';
@@ -25,6 +26,7 @@ import { CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../../../domain/models/t
 export class TimeEntryModalComponent {
   protected readonly ui = inject(UiStore);
   private readonly timeEntryStore = inject(TimeEntryStore);
+  private readonly undoStore = inject(UndoStore);
 
   readonly selectedEntry = computed(() => {
     const id = this.ui.selectedEntryId();
@@ -46,9 +48,10 @@ export class TimeEntryModalComponent {
   }
 
   onDelete() {
-    const id = this.ui.selectedEntryId();
-    if (id) {
-      this.timeEntryStore.removeEntry(id);
+    const entry = this.selectedEntry();
+    if (entry) {
+      this.undoStore.pushDelete([entry]);
+      this.timeEntryStore.removeEntry(entry.id);
       this.ui.closeEntryModal();
     }
   }

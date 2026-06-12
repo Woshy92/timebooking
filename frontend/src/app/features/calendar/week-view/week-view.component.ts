@@ -458,11 +458,17 @@ const MIN_BLOCK_HEIGHT = 26;
           <p class="text-sm text-gray-500 mb-4">Ab {{ formatDate(vd.startDate) }}</p>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Letzter Urlaubstag</label>
-            <input type="date" [value]="vd.endDateStr"
+            <input type="date" [value]="vacationEndDate()"
                    [min]="vd.startDateStr"
-                   (change)="vacationEndDate = $any($event.target).value"
+                   (input)="vacationEndDate.set($any($event.target).value)"
                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"/>
           </div>
+          @if (vacationEntryCount() > 0) {
+            <p class="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"
+               data-testid="vacation-delete-warning">
+              {{ vacationEntryCount() === 1 ? '1 Eintrag wird gelöscht' : vacationEntryCount() + ' Einträge werden gelöscht' }}
+            </p>
+          }
           <div class="flex justify-end gap-2 mt-5">
             <button (click)="vacationDialog.set(null)"
                     class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
@@ -842,7 +848,24 @@ export class WeekViewComponent {
   }
 
   vacationDialog = signal<{ startDate: Date; startDateStr: string; endDateStr: string } | null>(null);
-  vacationEndDate = '';
+  vacationEndDate = signal('');
+
+  /** Entries that would be deleted for the currently selected vacation range (reactive to the date input). */
+  readonly vacationEntryCount = computed(() => {
+    const vd = this.vacationDialog();
+    if (!vd) return 0;
+    return this.entriesInVacationRange(vd.startDate, this.vacationEndDate()).length;
+  });
+
+  /** Resolves the effective range and returns the entries that fall on its weekdays. */
+  private entriesInVacationRange(startDate: Date, endDateStr: string): TimeEntry[] {
+    const endDate = endDateStr ? new Date(endDateStr + 'T00:00:00') : startDate;
+    const actualEnd = endDate >= startDate ? endDate : startDate;
+    const allDaysInRange = eachDayOfInterval({ start: startDate, end: actualEnd }).filter(d => !isWeekend(d));
+    return this.timeEntryStore.entries().filter(e =>
+      allDaysInRange.some(d => isSameDay(new Date(e.start), d))
+    );
+  }
 
   onVacationClick(day: { date: Date; entries: TimeEntry[]; isVacation: boolean }) {
     this.interaction.dismissEmptyDraft();
@@ -852,7 +875,7 @@ export class WeekViewComponent {
     } else {
       // Show dialog to set vacation range
       const dateStr = format(day.date, 'yyyy-MM-dd');
-      this.vacationEndDate = dateStr;
+      this.vacationEndDate.set(dateStr);
       this.vacationDialog.set({ startDate: day.date, startDateStr: dateStr, endDateStr: dateStr });
     }
   }
@@ -860,14 +883,12 @@ export class WeekViewComponent {
   applyVacationRange() {
     const vd = this.vacationDialog();
     if (!vd) return;
-    const endDate = this.vacationEndDate ? new Date(this.vacationEndDate + 'T00:00:00') : vd.startDate;
+    const endDateStr = this.vacationEndDate();
+    const endDate = endDateStr ? new Date(endDateStr + 'T00:00:00') : vd.startDate;
     const actualEnd = endDate >= vd.startDate ? endDate : vd.startDate;
 
     // Delete entries in the range
-    const allDaysInRange = eachDayOfInterval({ start: vd.startDate, end: actualEnd }).filter(d => !isWeekend(d));
-    const entriesToDelete = this.timeEntryStore.entries().filter(e =>
-      allDaysInRange.some(d => isSameDay(new Date(e.start), d))
-    );
+    const entriesToDelete = this.entriesInVacationRange(vd.startDate, endDateStr);
     if (entriesToDelete.length > 0) {
       this.undoStore.pushDelete(entriesToDelete);
       this.timeEntryStore.removeEntries(entriesToDelete.map(e => e.id));

@@ -276,7 +276,9 @@ export class App {
   }
 
   refreshCalendar() {
-    this.timeEntryStore.clearDismissedGoogleEventIds();
+    // Sync respektiert bewusst ausgeblendete Events: dismissed IDs werden NICHT
+    // zurückgesetzt. Wiederherstellen geht weiterhin einzeln im Import-Wizard
+    // (undismissGoogleEvent) bzw. beim Wizard-Start (clearDismissedGoogleEventIds).
     this.calendarStore.fetchEvents(this.ui.weekStart(), this.ui.weekEnd());
   }
 
