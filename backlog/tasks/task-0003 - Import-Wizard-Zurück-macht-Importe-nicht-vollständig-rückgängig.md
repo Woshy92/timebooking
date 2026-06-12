@@ -4,7 +4,10 @@ title: 'Import-Wizard: Zurück macht Importe nicht vollständig rückgängig'
 status: To Do
 assignee: []
 created_date: '2026-06-12 17:14'
+updated_date: '2026-06-12 17:24'
 labels:
+  - bug
+  - wizard
   - frontend
 dependencies: []
 priority: high

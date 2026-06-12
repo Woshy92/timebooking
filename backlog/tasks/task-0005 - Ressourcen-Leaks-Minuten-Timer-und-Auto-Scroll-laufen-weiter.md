@@ -4,7 +4,9 @@ title: 'Ressourcen-Leaks: Minuten-Timer und Auto-Scroll laufen weiter'
 status: To Do
 assignee: []
 created_date: '2026-06-12 17:14'
+updated_date: '2026-06-12 17:24'
 labels:
+  - bug
   - frontend
 dependencies: []
 priority: medium

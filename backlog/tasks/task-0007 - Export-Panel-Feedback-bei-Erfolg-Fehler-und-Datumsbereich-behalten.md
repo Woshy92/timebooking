@@ -4,7 +4,10 @@ title: 'Export-Panel: Feedback bei Erfolg/Fehler und Datumsbereich behalten'
 status: To Do
 assignee: []
 created_date: '2026-06-12 17:15'
+updated_date: '2026-06-12 17:24'
 labels:
+  - ux
+  - export
   - frontend
 dependencies: []
 priority: medium

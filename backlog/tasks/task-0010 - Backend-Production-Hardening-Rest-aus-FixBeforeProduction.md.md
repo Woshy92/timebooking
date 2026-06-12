@@ -4,7 +4,10 @@ title: Backend Production-Hardening (Rest aus FixBeforeProduction.md)
 status: To Do
 assignee: []
 created_date: '2026-06-12 17:16'
+updated_date: '2026-06-12 17:24'
 labels:
+  - backend
+  - security
   - resilience
 dependencies: []
 priority: low
@@ -25,7 +28,10 @@ Sammelticket für die noch offenen Punkte aus FixBeforeProduction.md — bei rei
 - [ ] #4 SIGTERM/SIGINT-Handler: HTTP-Server und PGlite werden sauber geschlossen, laufende Session-File-Writes nicht korrumpiert
 - [ ] #5 app.listen-Fehler (z.B. EADDRINUSE) werden gefangen und mit verständlicher Meldung beendet
 - [ ] #6 ui.store.ts greift nicht mehr bei Module-Evaluation auf localStorage zu (SSR-sicher)
+- [ ] #7 OAuth-State ist an die Session gebunden: /auth/start speichert die Session-ID zum State (pendingStates.set(state, { sid: req.sessionID, createdAt })), /auth/callback lehnt ab wenn entry.sid !== req.sessionID (Login-CSRF ausgeschlossen)
 <!-- AC:END -->
+
+
 
 ## Definition of Done
 <!-- DOD:BEGIN -->

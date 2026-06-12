@@ -4,8 +4,12 @@ title: 'OAuth-Fehler: sauberer Redirect statt rohem JSON im Browser'
 status: To Do
 assignee: []
 created_date: '2026-06-12 17:15'
+updated_date: '2026-06-12 17:24'
 labels:
+  - ux
+  - backend
   - auth
+  - security
 dependencies: []
 priority: medium
 ordinal: 9000

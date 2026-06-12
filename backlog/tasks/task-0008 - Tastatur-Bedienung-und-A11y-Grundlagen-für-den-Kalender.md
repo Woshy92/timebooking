@@ -4,7 +4,10 @@ title: Tastatur-Bedienung und A11y-Grundlagen für den Kalender
 status: To Do
 assignee: []
 created_date: '2026-06-12 17:15'
+updated_date: '2026-06-12 17:24'
 labels:
+  - ux
+  - a11y
   - frontend
 dependencies: []
 priority: medium
