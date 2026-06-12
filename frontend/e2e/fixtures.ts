@@ -1,5 +1,93 @@
 import { test as base, type Page, type Route } from '@playwright/test';
 
+// ─── Shared types & helpers used by stateful-backend specs ───────────────────
+
+/** Shape of a time entry as stored/returned by the mock backend. */
+export interface StoredEntry {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  projectId: string;
+  source: string;
+  notes?: string;
+}
+
+/** Single seeded project so entry forms (projectId required) validate. */
+export const PROJECT = { id: 'p1', name: 'Beratung', color: '#6366F1', archived: false };
+
+/** Install a stateful mock backend for the storage endpoints used in create/delete/undo flows. */
+export async function installStatefulBackend(page: Page): Promise<void> {
+  const entries: StoredEntry[] = [];
+  let seq = 0;
+
+  const jsonBody = (route: Route, body: unknown, status = 200) =>
+    route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+
+  // Projects: one active project so the entry form validates.
+  await page.route('**/api/storage/projects**', (route) => {
+    if (route.request().method() === 'GET') return jsonBody(route, [PROJECT]);
+    return route.fulfill({ status: 204, body: '' });
+  });
+
+  // Batch delete: remove ids, return dismissed-google ids (none here).
+  await page.route('**/api/storage/entries/delete-batch', async (route) => {
+    const { ids } = (route.request().postDataJSON() ?? {}) as { ids: string[] };
+    for (const id of ids ?? []) {
+      const idx = entries.findIndex((e) => e.id === id);
+      if (idx !== -1) entries.splice(idx, 1);
+    }
+    return jsonBody(route, []);
+  });
+
+  // Single delete (used by the modal delete path).
+  await page.route('**/api/storage/entries/*', async (route) => {
+    const method = route.request().method();
+    if (method === 'DELETE') {
+      const url = new URL(route.request().url());
+      const id = url.pathname.split('/').pop()!;
+      const idx = entries.findIndex((e) => e.id === id);
+      if (idx !== -1) entries.splice(idx, 1);
+      return route.fulfill({ status: 204, body: '' });
+    }
+    return jsonBody(route, []);
+  });
+
+  // List + create on the entries collection.
+  await page.route('**/api/storage/entries**', async (route) => {
+    const method = route.request().method();
+    if (method === 'GET') return jsonBody(route, entries);
+    if (method === 'POST') {
+      const dto = (route.request().postDataJSON() ?? {}) as Partial<StoredEntry>;
+      const created: StoredEntry = {
+        id: `e${++seq}`,
+        title: dto.title ?? '',
+        start: dto.start as string,
+        end: dto.end as string,
+        projectId: (dto.projectId as string) ?? PROJECT.id,
+        source: dto.source ?? 'manual',
+        notes: dto.notes,
+      };
+      entries.push(created);
+      return jsonBody(route, created, 201);
+    }
+    return route.fulfill({ status: 204, body: '' });
+  });
+}
+
+/** A weekday (Wednesday) in the currently displayed week, formatted yyyy-MM-dd. */
+export function midWeekDateStr(): string {
+  const now = new Date();
+  const d = new Date(now);
+  d.setDate(now.getDate() - ((now.getDay() + 6) % 7) + 2); // Monday + 2 = Wednesday
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * Deterministic E2E fixtures for the Timebooking frontend.
  *
