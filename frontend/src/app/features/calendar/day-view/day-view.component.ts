@@ -202,7 +202,16 @@ const MIN_BLOCK_HEIGHT = 34;
                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>
                     </svg>
-                    <div class="text-sm font-medium truncate">Pause</div>
+                    <div class="text-sm font-medium truncate flex-1 min-w-0">Pause</div>
+                    <button
+                      class="opacity-0 group-hover:opacity-100 p-0.5 -mr-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
+                      title="Löschen"
+                      (click)="interaction.deleteSingleEntry($event, entry)"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
                   </div>
                   <div class="text-xs tabular-nums mt-0.5 text-gray-400" style="opacity: 0.6">
                     {{ formatTime(interaction.getEffectiveStart(entry)) }}–{{ formatTime(interaction.getEffectiveEnd(entry)) }} · {{ getDurationMinutes(entry) | duration }}
@@ -246,7 +255,7 @@ const MIN_BLOCK_HEIGHT = 34;
               >
                 <div class="px-3 py-2 h-full flex flex-col overflow-hidden">
                   <div class="flex items-center gap-1.5">
-                    <div class="text-sm font-semibold truncate" [style.color]="interaction.getEntryColor(entry)">{{ entry.title || 'Ohne Beschreibung' }}</div>
+                    <div class="text-sm font-semibold truncate flex-1 min-w-0" [style.color]="interaction.getEntryColor(entry)">{{ entry.title || 'Ohne Beschreibung' }}</div>
                     @if (entry.source === 'google') {
                       <svg class="w-3 h-3 flex-shrink-0 opacity-50" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
@@ -255,6 +264,15 @@ const MIN_BLOCK_HEIGHT = 34;
                         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                       </svg>
                     }
+                    <button
+                      class="opacity-0 group-hover:opacity-100 p-0.5 -mr-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
+                      title="Löschen"
+                      (click)="interaction.deleteSingleEntry($event, entry)"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
                   </div>
                   <div class="text-xs tabular-nums mt-0.5" [style.color]="interaction.getEntryColor(entry)" style="opacity: 0.6">
                     {{ formatTime(interaction.getEffectiveStart(entry)) }}–{{ formatTime(interaction.getEffectiveEnd(entry)) }} · {{ getDurationMinutes(entry) | duration }}

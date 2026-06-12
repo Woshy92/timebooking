@@ -287,6 +287,13 @@ export class CalendarInteractionService {
     this.closePopover();
   }
 
+  deleteSingleEntry(event: MouseEvent, entry: TimeEntry) {
+    event.stopPropagation();
+    this.undoStore.pushDelete([entry]);
+    this.timeEntryStore.removeEntries([entry.id]);
+    this.closePopover();
+  }
+
   openEntryDetails() {
     const id = [...this.selectedEntryIds()][0];
     if (id) this.ui.selectEntry(id);
