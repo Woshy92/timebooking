@@ -4,6 +4,7 @@ import { ProjectStore } from '../../../state/project.store';
 import { TimeEntry, CreateTimeEntryDTO, UpdateTimeEntryDTO } from '../../../domain/models/time-entry.model';
 import { getProjectDisplayName } from '../../../domain/models/project.model';
 import { format } from 'date-fns';
+import { isEndTimeNotAfterStart } from './time-validation';
 
 function stripHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -123,6 +124,9 @@ const MAX_VISIBLE_ATTENDEES = 3;
             type="time"
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
           />
+          @if (isEndTimeBeforeStart()) {
+            <p class="mt-1 text-sm text-red-600">Endzeit muss nach der Startzeit liegen</p>
+          }
         </div>
       </div>
 
@@ -248,6 +252,14 @@ export class TimeEntryFormComponent {
     return this.projectStore.activeProjects().find(p => p.id === id) ?? null;
   });
 
+  /** Tracks the current startTime/endTime values from the reactive form for signal-based validation. */
+  protected readonly formTimes = signal<{ startTime: string; endTime: string }>({ startTime: '', endTime: '' });
+
+  protected readonly isEndTimeBeforeStart = computed(() => {
+    const { startTime, endTime } = this.formTimes();
+    return isEndTimeNotAfterStart(startTime, endTime);
+  });
+
   form!: FormGroup;
 
   constructor() {
@@ -269,6 +281,12 @@ export class TimeEntryFormComponent {
         notes: [entry?.notes ?? ''],
       });
       this.selectedProjectId.set(defaultProjectId);
+
+      // Seed the signal with initial values and keep it in sync as the user edits times.
+      this.formTimes.set({ startTime: format(start, 'HH:mm'), endTime: format(end, 'HH:mm') });
+      this.form.valueChanges.subscribe((v: { startTime: string; endTime: string }) => {
+        this.formTimes.set({ startTime: v.startTime ?? '', endTime: v.endTime ?? '' });
+      });
     });
   }
 
@@ -280,6 +298,7 @@ export class TimeEntryFormComponent {
 
   onSubmit() {
     if (this.form.invalid) return;
+    if (this.isEndTimeBeforeStart()) return;
     const v = this.form.value;
     const start = new Date(`${v.date}T${v.startTime}:00`);
     const end = new Date(`${v.date}T${v.endTime}:00`);
