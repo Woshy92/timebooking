@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, ElementRef, viewChild, afterNextRender, HostListener } from '@angular/core';
+import { Component, inject, computed, signal, ElementRef, viewChild, afterNextRender, HostListener, DestroyRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TimeEntryStore } from '../../../state/time-entry.store';
 import { ProjectStore } from '../../../state/project.store';
@@ -508,6 +508,7 @@ export class WeekViewComponent {
   readonly draftColor = computed(() => this.defaultProject()?.color ?? '#6366F1');
 
   private readonly tick = signal(0);
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
     afterNextRender(() => {
@@ -515,7 +516,8 @@ export class WeekViewComponent {
       if (!container) return;
       const scrollTo = (8 - this.viewStart()) * HOUR_HEIGHT;
       if (scrollTo > 0) container.scrollTop = scrollTo;
-      setInterval(() => this.tick.update(t => t + 1), 60_000);
+      const intervalId = setInterval(() => this.tick.update(t => t + 1), 60_000);
+      this.destroyRef.onDestroy(() => clearInterval(intervalId));
     });
   }
 
@@ -667,7 +669,11 @@ export class WeekViewComponent {
         this.interaction.clearClickTimer();
         this.interaction.closePopover();
         this.interaction.dismissEmptyDraft();
-        stopScroll = container ? startAutoScroll(container, () => lastClientY) : null;
+        const resetDragStyles = () => {
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+        };
+        stopScroll = container ? startAutoScroll(container, () => lastClientY, resetDragStyles) : null;
         document.body.style.cursor = 'grabbing';
         document.body.style.userSelect = 'none';
       }
