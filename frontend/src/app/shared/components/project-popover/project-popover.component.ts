@@ -8,9 +8,10 @@ import { getProjectDisplayName } from '../../../domain/models/project.model';
   template: `
     <div class="fixed inset-0 z-40" (click)="close.emit()"></div>
     <div
-      class="fixed z-50 w-52 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 animate-pop-in"
+      class="fixed z-50 w-52 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 animate-pop-in flex flex-col"
       [style.left.px]="x()"
-      [style.top.px]="y()"
+      [style.top.px]="clampedY()"
+      [style.max-height.px]="maxHeight()"
     >
       <div class="px-3 py-1.5">
         @if (entryTimeLabel()) {
@@ -24,22 +25,24 @@ import { getProjectDisplayName } from '../../../domain/models/project.model';
           }
         </div>
       </div>
-      @for (project of projectStore.activeProjects(); track project.id) {
-        <button
-          (click)="assign.emit(project.id)"
-          class="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-gray-50 transition-colors text-left"
-          [class.bg-indigo-50]="commonProjectId() === project.id"
-          [class.font-semibold]="commonProjectId() === project.id"
-        >
-          <div class="w-3 h-3 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
-          <span class="text-gray-800 truncate">{{ getDisplayName(project) }}</span>
-          @if (commonProjectId() === project.id) {
-            <svg class="w-3.5 h-3.5 text-indigo-500 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-            </svg>
-          }
-        </button>
-      }
+      <div class="overflow-y-auto min-h-0">
+        @for (project of assignableProjects(); track project.id) {
+          <button
+            (click)="assign.emit(project.id)"
+            class="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-gray-50 transition-colors text-left"
+            [class.bg-indigo-50]="commonProjectId() === project.id"
+            [class.font-semibold]="commonProjectId() === project.id"
+          >
+            <div class="w-3 h-3 rounded-full flex-shrink-0" [style.background-color]="project.color"></div>
+            <span class="text-gray-800 truncate">{{ getDisplayName(project) }}</span>
+            @if (commonProjectId() === project.id) {
+              <svg class="w-3.5 h-3.5 text-indigo-500 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+              </svg>
+            }
+          </button>
+        }
+      </div>
       <div class="border-t border-gray-100 mt-1 pt-1">
         @if (selectedCount() === 1) {
           <button
@@ -83,4 +86,19 @@ export class ProjectPopoverComponent {
   openDetails = output<void>();
   delete = output<void>();
   close = output<void>();
+
+  protected readonly assignableProjects = computed(() =>
+    this.projectStore.activeProjects().filter(p => !p.ignored)
+  );
+
+  private readonly viewportPadding = 16;
+
+  protected readonly clampedY = computed(() => {
+    const maxTop = window.innerHeight - this.viewportPadding - 400;
+    return Math.min(this.y(), Math.max(this.viewportPadding, maxTop));
+  });
+
+  protected readonly maxHeight = computed(() =>
+    window.innerHeight - this.clampedY() - this.viewportPadding
+  );
 }
