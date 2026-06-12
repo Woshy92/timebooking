@@ -104,6 +104,17 @@ describe('OAuth state is bound to the initiating session', () => {
     app = createApp();
   });
 
+  it('emits a session cookie on /auth/start so the session survives the redirect', async () => {
+    // Regression guard: the OAuth state lives in the server-side pendingStates
+    // map, not in the session, so the session would be unmodified. With
+    // saveUninitialized=false, express-session would then NOT send a
+    // Set-Cookie header and the callback would arrive with a fresh session ID,
+    // breaking the session-binding check. /auth/start must force the cookie.
+    const startRes = await request(app).get('/auth/start');
+    const sessionCookie = cookieFromResponse(startRes, 'connect.sid');
+    expect(sessionCookie).toBeTruthy();
+  });
+
   it('accepts the callback from the same session that started the flow', async () => {
     const agent = request.agent(app);
     const state = await obtainValidState(agent);

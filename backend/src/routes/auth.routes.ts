@@ -48,10 +48,17 @@ router.get('/start', (req, res) => {
     prompt: 'consent',
     state,
   });
-  // Touch and persist the session: with saveUninitialized=false the session
-  // cookie is only sent if the session was modified. The callback must
-  // arrive with the SAME session ID, otherwise the state check fails.
-  req.session.oauthState = state;
+  // Persist the session before redirecting to Google. The OAuth state itself
+  // lives in the server-side `pendingStates` map (bound to this session ID),
+  // NOT in the session — so the session would otherwise be unmodified.
+  //
+  // With saveUninitialized=false, express-session only emits a Set-Cookie
+  // header when the session was modified (see shouldSetCookie). An unmodified
+  // session gets no cookie, so the callback would arrive with a brand-new
+  // session ID and the state check (`entry.sid !== req.sessionID`) would fail.
+  // We therefore mark the session as initialized to force the cookie out, then
+  // save() persists it to the store before the redirect.
+  req.session.initialized = true;
   req.session.save(() => {
     res.redirect(url);
   });
@@ -86,7 +93,6 @@ router.get('/callback', async (req, res) => {
     const oauth2Client = createOAuth2Client();
     const { tokens } = await oauth2Client.getToken(code);
     req.session.tokens = tokens;
-    delete req.session.oauthState;
     req.session.save(() => {
       // Rotate the CSRF token on privilege escalation (login) so a token
       // obtained pre-login cannot be fixated.
