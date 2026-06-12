@@ -13,6 +13,7 @@ import { UndoToastComponent } from './shared/components/undo-toast/undo-toast.co
 import { ImportWizardComponent } from './features/calendar/import-wizard/import-wizard.component';
 import { environment } from '../environments/environment';
 import { authErrorMessage, stripAuthErrorParam } from './shared/utils/auth-error';
+import { isSafeRedirectUrl } from './shared/utils/safe-redirect';
 
 @Component({
   selector: 'app-root',
@@ -301,6 +302,12 @@ export class App {
     if (this.calendarStore.authenticated()) return;
     if (this.backendUnavailable()) return;
     this.calendarStore.getAuthUrl((url) => {
+      // Defense in depth: never navigate to an auth URL that is not
+      // same-origin or the configured https backend host.
+      if (!isSafeRedirectUrl(url)) {
+        this.calendarStore.setError('Anmeldung fehlgeschlagen: ungültige Weiterleitungs-URL');
+        return;
+      }
       window.location.href = url;
     });
   }
