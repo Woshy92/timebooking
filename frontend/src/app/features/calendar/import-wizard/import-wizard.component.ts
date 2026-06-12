@@ -12,7 +12,34 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
 type WizardStep = 'loading' | 'assign' | 'gaps' | 'done';
-type HistoryAction = { type: 'import'; eventId: string; entryId?: string } | { type: 'dismiss'; eventId: string } | { type: 'skip' };
+
+/**
+ * One entry in the wizard's undo history. Each wizard step (one Termin) records exactly one
+ * HistoryAction so that `goBack()` can fully reverse it without reconstructing state.
+ *
+ * For an import step we remember every TimeEntry created in that step (the current event plus,
+ * for a series import, all auto-imported series events) via `importedEntryIds`, and the
+ * CalendarEvents that were spliced out of `eventsToProcess` via `removedSeriesEvents` so they can
+ * be re-inserted and become decidable again.
+ */
+type HistoryAction =
+  | {
+      type: 'import';
+      /** Google event id of the event shown in this step. */
+      eventId: string;
+      /** Ids of ALL TimeEntries created in this step (current event + auto-imported series). */
+      importedEntryIds: string[];
+      /** Google event ids of all entries created in this step (for un-dismissing on undo). */
+      importedGoogleEventIds: string[];
+      /**
+       * Series events that were removed from `eventsToProcess` and must be restored on undo,
+       * together with the index they originally occupied so they can be re-inserted in place.
+       */
+      removedSeriesEvents: { event: CalendarEvent; index: number }[];
+      /** Recurring mapping that was created in this step and must be removed on undo. */
+      createdRecurringMappingId?: string;
+    }
+  | { type: 'dismiss'; eventId: string };
 
 @Component({
   selector: 'app-import-wizard',
@@ -134,7 +161,7 @@ type HistoryAction = { type: 'import'; eventId: string; entryId?: string } | { t
                   class="px-3 py-2 rounded-lg text-sm font-medium text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
                   (click)="dismissCurrent()"
                 >
-                  Löschen
+                  Überspringen
                 </button>
               </div>
             </div>
@@ -315,17 +342,36 @@ export class ImportWizardComponent {
   }
 
   importWithProject(projectId: string) {
+    this.importCurrent(projectId);
+  }
+
+  importCurrentWithoutProject() {
+    this.importCurrent(undefined);
+  }
+
+  /**
+   * Imports the current event (and, for an applicable series mapping, all remaining series events)
+   * and records a single import HistoryAction so `goBack()` can undo the whole step.
+   */
+  private importCurrent(projectId: string | undefined) {
     const ev = this.currentEvent();
     if (!ev) return;
 
+    const importedGoogleEventIds: string[] = [];
+    const removedSeriesEvents: { event: CalendarEvent; index: number }[] = [];
+    let createdRecurringMappingId: string | undefined;
+
     if (ev.recurringEventId && this.applyToSeries() && projectId) {
       this.timeEntryStore.setRecurringProjectMapping(ev.recurringEventId, projectId, ev.title);
+      createdRecurringMappingId = ev.recurringEventId;
 
-      // Auto-import remaining events in this series and remove from snapshot
+      // Auto-import remaining events in this series and remember their original positions.
       const currentIdx = this.currentIndex();
-      const seriesEvents = this.eventsToProcess().filter(
-        (e, i) => i > currentIdx && e.recurringEventId === ev.recurringEventId
-      );
+      const seriesEntries = this.eventsToProcess()
+        .map((event, index) => ({ event, index }))
+        .filter(({ event, index }) => index > currentIdx && event.recurringEventId === ev.recurringEventId);
+      const seriesEvents = seriesEntries.map(s => s.event);
+      removedSeriesEvents.push(...seriesEntries);
       for (const seriesEv of seriesEvents) {
         this.timeEntryStore.addEntry({
           title: seriesEv.title,
@@ -338,6 +384,7 @@ export class ImportWizardComponent {
           description: seriesEv.description || undefined,
           attendees: seriesEv.attendees?.length ? seriesEv.attendees : undefined,
         });
+        importedGoogleEventIds.push(seriesEv.id);
         this.importedCount.update(c => c + 1);
         this.autoImportedCount.update(c => c + 1);
       }
@@ -358,29 +405,23 @@ export class ImportWizardComponent {
       description: ev.description || undefined,
       attendees: ev.attendees?.length ? ev.attendees : undefined,
     });
+    importedGoogleEventIds.push(ev.id);
 
-    this.history.push({ type: 'import', eventId: ev.id });
-    this.importedCount.update(c => c + 1);
-    this.advance();
-  }
+    // Resolve the created entry ids by their googleEventId (addEntry does not return the entry).
+    const googleIdSet = new Set(importedGoogleEventIds);
+    const importedEntryIds = this.timeEntryStore
+      .entries()
+      .filter(e => e.googleEventId && googleIdSet.has(e.googleEventId))
+      .map(e => e.id);
 
-  importCurrentWithoutProject() {
-    const ev = this.currentEvent();
-    if (!ev) return;
-
-    this.timeEntryStore.addEntry({
-      title: ev.title,
-      start: ev.start,
-      end: ev.end,
-      projectId: undefined,
-      source: 'google',
-      googleEventId: ev.id,
-      recurringEventId: ev.recurringEventId,
-      description: ev.description || undefined,
-      attendees: ev.attendees?.length ? ev.attendees : undefined,
+    this.history.push({
+      type: 'import',
+      eventId: ev.id,
+      importedEntryIds,
+      importedGoogleEventIds,
+      removedSeriesEvents,
+      createdRecurringMappingId,
     });
-
-    this.history.push({ type: 'import', eventId: ev.id });
     this.importedCount.update(c => c + 1);
     this.advance();
   }
@@ -398,14 +439,26 @@ export class ImportWizardComponent {
     const lastAction = this.history.pop();
     if (!lastAction) return;
 
-    // Undo last action
     if (lastAction.type === 'import') {
-      // Find the entry by googleEventId and remove it
-      const entry = this.timeEntryStore.entries().find(e => e.googleEventId === lastAction.eventId);
-      if (entry) {
-        this.timeEntryStore.removeEntry(entry.id);
-        this.importedCount.update(c => c - 1);
+      // Remove every entry created in this step (current event + auto-imported series).
+      for (const entryId of lastAction.importedEntryIds) {
+        this.timeEntryStore.removeEntry(entryId);
       }
+      // removeEntry() dismisses google events as a side effect; undo that so the events stay
+      // visible in the calendar and the dismissed list does not grow on every "Zurück".
+      for (const googleEventId of lastAction.importedGoogleEventIds) {
+        this.timeEntryStore.undismissGoogleEvent(googleEventId);
+      }
+      // Restore series events at their original positions so they become decidable again.
+      if (lastAction.removedSeriesEvents.length > 0) {
+        this.eventsToProcess.update(events => this.reinsertEvents(events, lastAction.removedSeriesEvents));
+        this.autoImportedCount.update(c => c - lastAction.removedSeriesEvents.length);
+      }
+      // Drop the recurring mapping created in this step so the series is decidable again.
+      if (lastAction.createdRecurringMappingId) {
+        this.timeEntryStore.deleteRecurringProjectMapping(lastAction.createdRecurringMappingId);
+      }
+      this.importedCount.update(c => c - lastAction.importedEntryIds.length);
     } else if (lastAction.type === 'dismiss') {
       this.timeEntryStore.undismissGoogleEvent(lastAction.eventId);
     }
@@ -413,6 +466,20 @@ export class ImportWizardComponent {
     this.currentIndex.update(i => i - 1);
     this.projectFilter.set('');
     this.applyToSeries.set(true);
+  }
+
+  /** Re-inserts previously removed events at their original indices, preserving snapshot order. */
+  private reinsertEvents(
+    current: CalendarEvent[],
+    removed: { event: CalendarEvent; index: number }[],
+  ): CalendarEvent[] {
+    const result = [...current];
+    // Insert ascending by original index so earlier slots are filled before later ones.
+    for (const { event, index } of [...removed].sort((a, b) => a.index - b.index)) {
+      const insertAt = Math.min(index, result.length);
+      result.splice(insertAt, 0, event);
+    }
+    return result;
   }
 
   fillGaps() {
