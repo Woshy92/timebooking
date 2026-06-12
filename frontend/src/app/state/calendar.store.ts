@@ -44,6 +44,9 @@ export const CalendarStore = signalStore(
       setAuthenticated(value: boolean) {
         patchState(store, { authenticated: value });
       },
+      setError(message: string | null) {
+        patchState(store, { error: message });
+      },
     };
   })
 );

@@ -12,6 +12,7 @@ import { ErrorToastComponent } from './shared/components/error-toast/error-toast
 import { UndoToastComponent } from './shared/components/undo-toast/undo-toast.component';
 import { ImportWizardComponent } from './features/calendar/import-wizard/import-wizard.component';
 import { environment } from '../environments/environment';
+import { authErrorMessage, stripAuthErrorParam } from './shared/utils/auth-error';
 
 @Component({
   selector: 'app-root',
@@ -261,6 +262,7 @@ export class App {
   backendUnavailable = signal(!environment.googleCalendarEnabled);
 
   constructor() {
+    this.handleAuthError();
     if (this.googleEnabled) {
       this.calendarStore.checkAuth();
       setTimeout(() => {
@@ -280,6 +282,16 @@ export class App {
 
   fillGaps() {
     this.timeEntryStore.fillGaps();
+  }
+
+  // Surface OAuth callback failures redirected from the backend (?auth_error=...)
+  // and clean the parameter out of the URL via history.replaceState.
+  private handleAuthError() {
+    const { search, pathname, hash } = window.location;
+    const message = authErrorMessage(search);
+    if (!message) return;
+    this.calendarStore.setError(message);
+    window.history.replaceState({}, '', stripAuthErrorParam(pathname, search, hash));
   }
 
   onGoogleConnect() {

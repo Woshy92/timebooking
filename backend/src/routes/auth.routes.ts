@@ -16,6 +16,16 @@ function cleanupStates() {
   }
 }
 
+function frontendOrigin(): string {
+  return process.env.FRONTEND_ORIGIN || 'http://localhost:4200';
+}
+
+// Redirect back to the frontend with a coarse-grained error code so the SPA can
+// show a localized message. Never leak internal/exception details into the URL.
+function redirectWithAuthError(res: import('express').Response, code: string): void {
+  res.redirect(`${frontendOrigin()}/?auth_error=${encodeURIComponent(code)}`);
+}
+
 // Browser navigates here directly so the redirect to Google happens
 // server-side (no XHR, no cross-origin cookie issues).
 router.get('/start', (_req, res) => {
@@ -35,14 +45,21 @@ router.get('/start', (_req, res) => {
 router.get('/callback', async (req, res) => {
   const code = req.query.code as string;
   const state = req.query.state as string;
+  const error = req.query.error as string;
+
+  // User denied consent (or another OAuth-level error). Google appends ?error=...
+  if (error) {
+    redirectWithAuthError(res, error === 'access_denied' ? 'access_denied' : 'auth_failed');
+    return;
+  }
 
   if (!code) {
-    res.status(400).json({ error: 'No authorization code provided' });
+    redirectWithAuthError(res, 'auth_failed');
     return;
   }
 
   if (!state || !pendingStates.has(state)) {
-    res.status(403).json({ error: 'Invalid state parameter' });
+    redirectWithAuthError(res, 'invalid_state');
     return;
   }
   pendingStates.delete(state);
@@ -52,11 +69,11 @@ router.get('/callback', async (req, res) => {
     const { tokens } = await oauth2Client.getToken(code);
     req.session.tokens = tokens;
     req.session.save(() => {
-      res.redirect(process.env.FRONTEND_ORIGIN || 'http://localhost:4200');
+      res.redirect(frontendOrigin());
     });
   } catch (err) {
     console.error('OAuth callback error:', err instanceof Error ? err.message : 'Unknown error');
-    res.status(500).json({ error: 'Failed to exchange authorization code' });
+    redirectWithAuthError(res, 'token_exchange_failed');
   }
 });
 
