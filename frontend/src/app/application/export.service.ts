@@ -1,7 +1,8 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { PDF_EXPORT_PORT, CSV_EXPORT_PORT, ExportOptions } from '../domain/ports/export.port';
 import { TimeEntryStore } from '../state/time-entry.store';
 import { ProjectStore } from '../state/project.store';
+import { CalendarStore } from '../state/calendar.store';
 import { mergeConsecutiveEntries } from '../shared/utils/merge-entries';
 import { format } from 'date-fns';
 
@@ -11,8 +12,16 @@ export class ExportService {
   private readonly csvPort = inject(CSV_EXPORT_PORT);
   private readonly timeEntryStore = inject(TimeEntryStore);
   private readonly projectStore = inject(ProjectStore);
+  private readonly calendarStore = inject(CalendarStore);
+
+  private readonly _busy = signal(false);
+  readonly busy = this._busy.asReadonly();
 
   export(fmt: 'pdf' | 'csv', dateRange: { from: Date; to: Date }, includeSummary = false, mergeConsecutive = false): void {
+    if (this._busy()) {
+      return;
+    }
+
     let entries = this.timeEntryStore.entries().filter(e => {
       const start = new Date(e.start);
       return start >= dateRange.from && start <= dateRange.to;
@@ -37,13 +46,23 @@ export class ExportService {
     const to = format(dateRange.to, 'yyyy-MM-dd');
     const filename = `Zeiterfassung_${from}_${to}.${extension}`;
 
-    port.export(options).subscribe((blob) => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    this._busy.set(true);
+    port.export(options).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      },
+      error: () => {
+        this._busy.set(false);
+        this.calendarStore.setError('Export fehlgeschlagen');
+      },
+      complete: () => {
+        this._busy.set(false);
+      },
     });
   }
 

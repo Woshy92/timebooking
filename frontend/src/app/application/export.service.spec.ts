@@ -1,11 +1,17 @@
-import { describe, it, expect } from 'vitest';
-import { firstValueFrom } from 'rxjs';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { firstValueFrom, of, throwError, Subject } from 'rxjs';
+import { TestBed } from '@angular/core/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { mergeConsecutiveEntries } from '../shared/utils/merge-entries';
 import { TimeEntry } from '../domain/models/time-entry.model';
 import { Project } from '../domain/models/project.model';
 import { CsvExportAdapter } from '../infrastructure/export/csv-export.adapter';
 import { PdfExportAdapter } from '../infrastructure/export/pdf-export.adapter';
-import { ExportOptions } from '../domain/ports/export.port';
+import { ExportOptions, ExportPort, PDF_EXPORT_PORT, CSV_EXPORT_PORT } from '../domain/ports/export.port';
+import { ExportService } from './export.service';
+import { TimeEntryStore } from '../state/time-entry.store';
+import { ProjectStore } from '../state/project.store';
+import { CalendarStore } from '../state/calendar.store';
 
 function entry(id: string, title: string, startH: number, endH: number, projectId?: string): TimeEntry {
   return {
@@ -200,5 +206,102 @@ describe('PdfExportAdapter – Pausen', () => {
     const blob = await firstValueFrom(new PdfExportAdapter().export(options));
     expect(blob.size).toBeGreaterThan(0);
     expect(blob.type).toContain('pdf');
+  });
+});
+
+describe('ExportService – Fehlerbehandlung & Busy-State', () => {
+  beforeAll(() => {
+    // No global Angular test setup file exists in this project; initialize it here.
+    // initTestEnvironment throws if already initialized, which is harmless for this suite.
+    try {
+      TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
+    } catch {
+      // already initialized by another spec
+    }
+  });
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    // jsdom does not implement createObjectURL; stub it so the success path can run.
+    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:stub'), revokeObjectURL: vi.fn() });
+    // Prevent the synthesized <a>.click() from triggering any navigation noise.
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  });
+
+  function setup(pdfPort: Partial<ExportPort>, csvPort: Partial<ExportPort> = pdfPort) {
+    const setError = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [
+        ExportService,
+        { provide: PDF_EXPORT_PORT, useValue: pdfPort },
+        { provide: CSV_EXPORT_PORT, useValue: csvPort },
+        { provide: TimeEntryStore, useValue: { entries: () => [] } },
+        { provide: ProjectStore, useValue: { projects: () => [] } },
+        { provide: CalendarStore, useValue: { setError } },
+      ],
+    });
+    const service = TestBed.inject(ExportService);
+    return { service, setError };
+  }
+
+  const RANGE = { from: new Date(2026, 2, 12, 0, 0), to: new Date(2026, 2, 12, 23, 59) };
+
+  it('meldet einen Port-Fehler über setError statt ihn zu verschlucken', () => {
+    const { service, setError } = setup({
+      format: 'pdf',
+      export: () => throwError(() => new Error('boom')),
+    });
+
+    service.export('pdf', RANGE);
+
+    expect(setError).toHaveBeenCalledWith('Export fehlgeschlagen');
+  });
+
+  it('setzt busy nach einem Fehler wieder auf false zurück', () => {
+    const { service } = setup({
+      format: 'pdf',
+      export: () => throwError(() => new Error('boom')),
+    });
+
+    expect(service.busy()).toBe(false);
+    service.export('pdf', RANGE);
+    expect(service.busy()).toBe(false);
+  });
+
+  it('setzt busy nach erfolgreichem Export wieder auf false zurück', () => {
+    const { service, setError } = setup({
+      format: 'pdf',
+      export: () => of(new Blob(['ok'], { type: 'application/pdf' })),
+    });
+
+    service.export('pdf', RANGE);
+
+    expect(service.busy()).toBe(false);
+    expect(setError).not.toHaveBeenCalled();
+  });
+
+  it('hält busy auf true, solange der Export läuft', () => {
+    const subject = new Subject<Blob>();
+    const { service } = setup({
+      format: 'pdf',
+      export: () => subject.asObservable(),
+    });
+
+    service.export('pdf', RANGE);
+    expect(service.busy()).toBe(true);
+
+    subject.next(new Blob(['ok'], { type: 'application/pdf' }));
+    subject.complete();
+    expect(service.busy()).toBe(false);
+  });
+
+  it('verhindert einen zweiten parallelen Export (Doppelklick-Schutz)', () => {
+    const exportFn = vi.fn(() => new Subject<Blob>().asObservable());
+    const { service } = setup({ format: 'pdf', export: exportFn });
+
+    service.export('pdf', RANGE);
+    service.export('pdf', RANGE);
+
+    expect(exportFn).toHaveBeenCalledTimes(1);
   });
 });

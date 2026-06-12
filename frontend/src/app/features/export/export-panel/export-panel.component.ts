@@ -56,8 +56,10 @@ import { format } from 'date-fns';
           <div class="pt-2 space-y-3">
             <button
               (click)="onExport('csv')"
+              [disabled]="exportService.busy()"
               class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200
-                     hover:bg-gray-50 hover:border-gray-300 transition-all text-left"
+                     hover:bg-gray-50 hover:border-gray-300 transition-all text-left
+                     disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
             >
               <div class="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
                 <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -73,8 +75,10 @@ import { format } from 'date-fns';
 
             <button
               (click)="onExport('pdf')"
+              [disabled]="exportService.busy()"
               class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200
-                     hover:bg-gray-50 hover:border-gray-300 transition-all text-left"
+                     hover:bg-gray-50 hover:border-gray-300 transition-all text-left
+                     disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
             >
               <div class="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
                 <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,19 +103,18 @@ import { format } from 'date-fns';
 })
 export class ExportPanelComponent {
   protected readonly ui = inject(UiStore);
-  private readonly exportService = inject(ExportService);
+  protected readonly exportService = inject(ExportService);
 
-  fromDate = signal(format(this.ui.weekStart(), 'yyyy-MM-dd'));
-  toDate = signal(format(this.ui.weekEnd(), 'yyyy-MM-dd'));
+  fromDate = signal(this.ui.exportFromDate() ?? format(this.ui.weekStart(), 'yyyy-MM-dd'));
+  toDate = signal(this.ui.exportToDate() ?? format(this.ui.weekEnd(), 'yyyy-MM-dd'));
   includeSummary = true;
   mergeConsecutive = false;
 
   constructor() {
+    // Persist the selected date range so a manually chosen range survives
+    // closing and reopening the panel within the session.
     effect(() => {
-      if (this.ui.isExportPanelOpen()) {
-        this.fromDate.set(format(this.ui.weekStart(), 'yyyy-MM-dd'));
-        this.toDate.set(format(this.ui.weekEnd(), 'yyyy-MM-dd'));
-      }
+      this.ui.setExportDateRange(this.fromDate(), this.toDate());
     });
   }
 

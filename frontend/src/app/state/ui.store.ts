@@ -15,9 +15,19 @@ interface UiState {
   highlightGaps: boolean;
   viewStartHour: number;
   viewEndHour: number;
+  exportFromDate: string | null;
+  exportToDate: string | null;
 }
 
 const DEFAULT_PROJECT_KEY = 'tb:default-project-id';
+
+// localStorage is only touched lazily (store creation / method calls), never
+// at module evaluation — keeps this module SSR-safe.
+function readPersistedDefaultProjectId(): string | null {
+  return typeof localStorage !== 'undefined'
+    ? localStorage.getItem(DEFAULT_PROJECT_KEY)
+    : null;
+}
 
 const initialState: UiState = {
   activeView: 'week',
@@ -26,15 +36,21 @@ const initialState: UiState = {
   isEntryModalOpen: false,
   isProjectPanelOpen: false,
   isExportPanelOpen: false,
-  defaultProjectId: localStorage.getItem(DEFAULT_PROJECT_KEY),
+  defaultProjectId: null,
   highlightGaps: false,
   viewStartHour: 7,
   viewEndHour: 19,
+  exportFromDate: null,
+  exportToDate: null,
 };
 
 export const UiStore = signalStore(
   { providedIn: 'root' },
-  withState(initialState),
+  withState(() => ({
+    ...initialState,
+    activeDate: new Date(),
+    defaultProjectId: readPersistedDefaultProjectId(),
+  })),
   withComputed(({ activeDate }) => ({
     weekStart: computed(() => startOfWeek(activeDate(), { weekStartsOn: 1 })),
     weekEnd: computed(() => endOfWeek(activeDate(), { weekStartsOn: 1 })),
@@ -87,8 +103,12 @@ export const UiStore = signalStore(
     setViewEndHour(hour: number) {
       patchState(store, { viewEndHour: Math.max(store.viewStartHour() + 2, Math.min(hour, 24)) });
     },
+    setExportDateRange(from: string, to: string) {
+      patchState(store, { exportFromDate: from, exportToDate: to });
+    },
     setDefaultProject(projectId: string | null) {
       patchState(store, { defaultProjectId: projectId });
+      if (typeof localStorage === 'undefined') return;
       if (projectId) {
         localStorage.setItem(DEFAULT_PROJECT_KEY, projectId);
       } else {
