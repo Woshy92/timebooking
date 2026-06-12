@@ -190,6 +190,116 @@ export class PdfExportAdapter implements ExportPort {
           }
         },
       });
+
+      // ─── Grouped detail view (entries grouped by project) ───
+      doc.addPage();
+
+      doc.setFontSize(18);
+      doc.text('Zeitübersicht nach Projekt', 14, 22);
+
+      doc.setFontSize(11);
+      doc.text(
+        `${format(options.dateRange.from, 'dd.MM.yyyy', { locale: de })} - ${format(options.dateRange.to, 'dd.MM.yyyy', { locale: de })}`,
+        14, 32
+      );
+
+      // Build grouped rows: project header → entries → subtotal
+      type RowType = 'header' | 'entry' | 'subtotal';
+      const groupedRows: { type: RowType; projectId?: string; data: string[] }[] = [];
+
+      const allProjectIds = [...usedProjectIds];
+      const hasNoProject = sortedEntries.some(e => !e.projectId);
+      if (hasNoProject) allProjectIds.push('__none__');
+
+      for (const pid of allProjectIds) {
+        const project = pid === '__none__' ? null : projectMap.get(pid);
+        const projectName = project ? getProjectDisplayName(project) : 'Ohne Projekt';
+        const projectEntries = sortedEntries.filter(e =>
+          pid === '__none__' ? !e.projectId : e.projectId === pid
+        );
+        if (projectEntries.length === 0) continue;
+
+        const projectHours = projectEntries.reduce(
+          (sum, e) => sum + (new Date(e.end).getTime() - new Date(e.start).getTime()) / 3600000, 0
+        );
+
+        groupedRows.push({
+          type: 'header',
+          projectId: pid,
+          data: [projectName, '', '', formatHoursAsHHMM(projectHours), ''],
+        });
+
+        for (const entry of projectEntries) {
+          groupedRows.push({
+            type: 'entry',
+            projectId: pid,
+            data: [
+              format(entry.start, 'dd.MM.yyyy'),
+              format(entry.start, 'HH:mm'),
+              format(entry.end, 'HH:mm'),
+              formatHoursAsHHMM((entry.end.getTime() - entry.start.getTime()) / 3600000),
+              entry.title,
+            ],
+          });
+        }
+      }
+
+      autoTable(doc, {
+        startY: 40,
+        head: [['Datum / Projekt', 'Von', 'Bis', 'Dauer', 'Beschreibung']],
+        body: groupedRows.map(r => r.data),
+        foot: [['', '', '', formatHoursAsHHMM(totalHours), 'Gesamt']],
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [79, 70, 229] },
+        footStyles: { fillColor: [243, 244, 246], textColor: [0, 0, 0], fontStyle: 'bold' },
+        columnStyles: { 0: { cellPadding: { top: 2, bottom: 2, left: 6, right: 2 } } },
+        didParseCell: (data) => {
+          if (data.section !== 'body') return;
+          const row = groupedRows[data.row.index];
+          if (!row) return;
+
+          if (row.type === 'header') {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fontSize = 10;
+            const project = row.projectId && row.projectId !== '__none__' ? projectMap.get(row.projectId) : null;
+            const rgb = project?.color ? parseHexColor(project.color) : null;
+            if (rgb) {
+              const [r, g, b] = rgb;
+              data.cell.styles.fillColor = [
+                Math.round(r + (255 - r) * 0.82),
+                Math.round(g + (255 - g) * 0.82),
+                Math.round(b + (255 - b) * 0.82),
+              ];
+            } else {
+              data.cell.styles.fillColor = [235, 235, 235];
+            }
+          } else if (row.type === 'entry') {
+            const project = row.projectId && row.projectId !== '__none__' ? projectMap.get(row.projectId) : null;
+            const rgb = project?.color ? parseHexColor(project.color) : null;
+            if (rgb) {
+              const [r, g, b] = rgb;
+              data.cell.styles.fillColor = [
+                Math.round(r + (255 - r) * 0.93),
+                Math.round(g + (255 - g) * 0.93),
+                Math.round(b + (255 - b) * 0.93),
+              ];
+            }
+          }
+        },
+        didDrawCell: (data) => {
+          if (data.section !== 'body' || data.column.index !== 0) return;
+          const row = groupedRows[data.row.index];
+          if (row?.type === 'header') {
+            const project = row.projectId && row.projectId !== '__none__' ? projectMap.get(row.projectId) : null;
+            const rgb = project?.color ? parseHexColor(project.color) : null;
+            if (rgb) {
+              const [r, g, b] = rgb;
+              doc.setFillColor(r, g, b);
+              doc.circle(data.cell.x + 3.5, data.cell.y + data.cell.height / 2, 1.5, 'F');
+            }
+          }
+        },
+      });
     }
 
     const blob = doc.output('blob');
