@@ -322,8 +322,8 @@ export class CalendarInteractionService {
     this.closePopover();
   }
 
-  deleteSingleEntry(event: Event, entry: TimeEntry) {
-    event.stopPropagation();
+  deleteSingleEntry(event: Event | null, entry: TimeEntry) {
+    event?.stopPropagation();
     this.undoStore.pushDelete([entry]);
     this.timeEntryStore.removeEntries([entry.id]);
     this.closePopover();
